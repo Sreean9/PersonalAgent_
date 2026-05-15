@@ -540,15 +540,14 @@ async def update_interests(
 #  What's New
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.get("/whats-new", response_model=List[AnnouncementOut], tags=["Discovery"])
+@app.get("/whats-new", tags=["Discovery"])
 async def whats_new(
-    category: Optional[str] = Query(None, pattern="^(feature|offer|general)$"),
-    limit: int = Query(5, ge=1, le=10),
-    db: AsyncSession = Depends(get_db),
+    category: str = Query("india"),
     current_user: User = Depends(get_current_user),
 ):
-    result = await tool_get_whats_new(db, category=category, limit=limit)
-    return result["announcements"]
+    """Return real-time news headlines via NewsAPI, grouped by category."""
+    from tools.news_tools import fetch_news
+    return await fetch_news(category=category, page_size=8)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
