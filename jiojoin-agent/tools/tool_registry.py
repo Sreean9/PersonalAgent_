@@ -1,124 +1,282 @@
-"""llm/groq_provider.py – Groq (Llama 3.3-70b) LLM provider."""
+"""
+tools/tool_registry.py – Groq-compatible tool definitions (JSON Schema).
 
-from __future__ import annotations
+This is the single source of truth for what tools the LLM can call.
+Each entry maps directly to a function in the tools package.
+"""
 
-import json
-import logging
-import re
-
-from groq import AsyncGroq, BadRequestError
-
-from config import get_settings
-from llm.base import BaseLLMProvider, LLMResponse
-
-logger = logging.getLogger(__name__)
-settings = get_settings()
-
-
-def _get_failed_generation(exc: BadRequestError) -> str:
-    """Extract failed_generation from a Groq 400 error."""
-    try:
-        body = getattr(exc, "body", None)
-        if isinstance(body, str):
-            body = json.loads(body)
-        if isinstance(body, dict):
-            fg = (body.get("error") or {}).get("failed_generation", "")
-            if fg:
-                return fg
-    except Exception:
-        pass
-    # Fallback: parse from string representation
-    m = re.search(r"'failed_generation':\s*'(.*?)'(?=\s*[,}])", str(exc), re.DOTALL)
-    return m.group(1) if m else ""
-
-
-def _parse_xml_tool_calls(text: str) -> list[dict]:
-    """
-    Parse Llama XML-style tool calls into standard format.
-    Handles: <function=name({"k":"v"})</function>  and  <function=name>{"k":"v"}
-    """
-    tool_calls: list[dict] = []
-    seen: set[tuple[str, str]] = set()
-    for m in re.finditer(r'<function=(\w+)[>(]?\s*(\{[^<]*?\})', text, re.DOTALL):
-        name, args = m.group(1), m.group(2).strip()
-        if (name, args) in seen:
-            continue
-        seen.add((name, args))
-        try:
-            json.loads(args)
-            tool_calls.append({
-                "id": f"call_r{len(tool_calls)}",
-                "type": "function",
-                "function": {"name": name, "arguments": args},
-            })
-            logger.info("Recovered XML tool call: %s %s", name, args[:80])
-        except json.JSONDecodeError:
-            logger.warning("Could not parse args for tool %s: %.60s", name, args)
-    return tool_calls
-
-
-class GroqProvider(BaseLLMProvider):
-    def __init__(self) -> None:
-        # 20-second per-call timeout prevents hanging when Groq is slow or rate-limited
-        self._client = AsyncGroq(api_key=settings.groq_api_key, timeout=20.0)
-
-    async def chat(
-        self,
-        messages: list[dict],
-        tools: list[dict] | None = None,
-        temperature: float = 0.6,
-        max_tokens: int = 2048,
-    ) -> LLMResponse:
-        kwargs: dict = {
-            "model": settings.groq_model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-        if tools:
-            kwargs["tools"] = tools
-            kwargs["tool_choice"] = "auto"
-
-        try:
-            response = await self._client.chat.completions.create(**kwargs)
-
-        except BadRequestError as exc:
-            # Groq rejected a malformed tool call — try to recover the XML format
-            failed_gen = _get_failed_generation(exc)
-            if failed_gen:
-                recovered = _parse_xml_tool_calls(failed_gen)
-                if recovered:
-                    logger.info("XML recovery succeeded: %d tool call(s)", len(recovered))
-                    return LLMResponse(content="", tool_calls=recovered, finish_reason="tool_calls")
-            # Recovery failed — retry without tools for a plain text response
-            if "tools" in kwargs:
-                logger.warning("XML recovery failed — retrying without tools (max_tokens=512)")
-                kwargs.pop("tools", None)
-                kwargs.pop("tool_choice", None)
-                kwargs["max_tokens"] = 512
-                response = await self._client.chat.completions.create(**kwargs)
-            else:
-                raise
-
-        choice = response.choices[0]
-        msg = choice.message
-
-        tool_calls: list[dict] = []
-        if msg.tool_calls:
-            tool_calls = [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments,
+TOOLS: list[dict] = [
+    # ── To-Do ─────────────────────────────────────────────────────────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "add_todo",
+            "description": (
+                "Create a new to-do item / task for the user. "
+                "Use this when the user wants to add, save, or remember a task."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Short title of the task (required).",
                     },
-                }
-                for tc in msg.tool_calls
-            ]
+                    "description": {
+                        "type": "string",
+                        "description": "Longer description or notes about the task.",
+                    },
+                    "priority": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high"],
+                        "description": "Task priority. Defaults to 'medium'.",
+                    },
+                    "due_date": {
+                        "type": "string",
+                        "description": "Due date/time in ISO-8601 format (e.g. '2025-06-15' or '2025-06-15T09:00:00').",
+                    },
+                    "tags": {
+                        "type": "string",
+                        "description": "Comma-separated tags (e.g. 'work,urgent').",
+                    },
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_todos",
+            "description": (
+                "Retrieve the user's to-do items. "
+                "Use this when the user asks to see, show, or list their tasks."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": ["pending", "in_progress", "completed", "cancelled"],
+                        "description": "Filter by task status.",
+                    },
+                    "priority": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high"],
+                        "description": "Filter by priority.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of tasks to return (default 20).",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_todo",
+            "description": (
+                "Update an existing to-do item (change status, title, due date, etc.). "
+                "Use this when the user marks a task as done, edits a task, or reschedules it."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "todo_id": {
+                        "type": "string",
+                        "description": "The ID of the to-do item to update.",
+                    },
+                    "title": {"type": "string", "description": "New title."},
+                    "description": {"type": "string", "description": "New description."},
+                    "status": {
+                        "type": "string",
+                        "enum": ["pending", "in_progress", "completed", "cancelled"],
+                    },
+                    "priority": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high"],
+                    },
+                    "due_date": {
+                        "type": "string",
+                        "description": "New due date in ISO-8601 format.",
+                    },
+                    "tags": {"type": "string"},
+                },
+                "required": ["todo_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_todo",
+            "description": "Permanently delete a to-do item by its ID.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "todo_id": {
+                        "type": "string",
+                        "description": "The ID of the to-do item to delete.",
+                    },
+                },
+                "required": ["todo_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_todos",
+            "description": "Search the user's to-do items by keyword.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search keyword to match against task titles and descriptions.",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
 
-        return LLMResponse(
-            content=msg.content or "",
-            tool_calls=tool_calls,
-            finish_reason=choice.finish_reason or "stop",
-        )
+    # ── Utility ───────────────────────────────────────────────────────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate",
+            "description": (
+                "Evaluate a mathematical expression. "
+                "Use for arithmetic, percentages (e.g. '15% of 2400'), square roots, trigonometry, etc."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "The math expression to evaluate (e.g. '(45 * 12) / 7', 'sqrt(144)', '15% of 2400').",
+                    },
+                },
+                "required": ["expression"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "convert_units",
+            "description": (
+                "Convert a value between units. "
+                "Supports length (km, miles, feet), weight (kg, lbs), volume (litres, gallons), "
+                "temperature (Celsius, Fahrenheit, Kelvin), speed (kph, mph), and data size (MB, GB)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "value": {
+                        "type": "number",
+                        "description": "The numeric value to convert.",
+                    },
+                    "from_unit": {
+                        "type": "string",
+                        "description": "Source unit (e.g. 'km', 'kg', 'celsius', 'gb').",
+                    },
+                    "to_unit": {
+                        "type": "string",
+                        "description": "Target unit (e.g. 'miles', 'lbs', 'fahrenheit', 'mb').",
+                    },
+                },
+                "required": ["value", "from_unit", "to_unit"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_reminder",
+            "description": (
+                "Set a reminder for the user at a specific time. "
+                "Use when the user wants to be reminded about something later."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "What to remind the user about.",
+                    },
+                    "remind_at": {
+                        "type": "string",
+                        "description": "When to remind – ISO-8601 or natural language like 'tomorrow at 9am', 'in 2 hours'.",
+                    },
+                },
+                "required": ["title", "remind_at"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_reminders",
+            "description": "Show the user's upcoming or past reminders.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": ["active", "triggered", "cancelled"],
+                        "description": "Filter by reminder status. Defaults to 'active'.",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "cancel_reminder",
+            "description": "Cancel an active reminder by its ID.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "reminder_id": {
+                        "type": "string",
+                        "description": "The ID of the reminder to cancel.",
+                    },
+                },
+                "required": ["reminder_id"],
+            },
+        },
+    },
+
+    # ── News & Discovery ──────────────────────────────────────────────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_news",
+            "description": (
+                "Fetch real-time top news headlines. "
+                "Use when the user asks for news, current events, what's happening, latest stories, "
+                "cricket/sports scores, business news, tech news, or anything news-related. "
+                "Never use brave_search or any web search tool — use this instead."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "enum": ["india", "sports", "world", "business", "tech", "entertainment", "health", "science"],
+                        "description": "News category. Use 'india' for general Indian news, 'sports' for cricket/sports, 'world' for international news.",
+                    },
+                },
+                "required": ["category"],
+            },
+        },
+    },
+]
+# explore_interest, update_user_interests, get_user_interests removed — Phase 4
