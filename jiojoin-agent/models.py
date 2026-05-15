@@ -120,8 +120,8 @@ class Todo(Base):
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    status: Mapped[TodoStatus] = mapped_column(SAEnum(TodoStatus), default=TodoStatus.PENDING)
-    priority: Mapped[TodoPriority] = mapped_column(SAEnum(TodoPriority), default=TodoPriority.MEDIUM)
+    status: Mapped[TodoStatus] = mapped_column(SAEnum(TodoStatus, native_enum=False), default=TodoStatus.PENDING)
+    priority: Mapped[TodoPriority] = mapped_column(SAEnum(TodoPriority, native_enum=False), default=TodoPriority.MEDIUM)
     due_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     tags: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -139,7 +139,7 @@ class Reminder(Base):
     remind_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     is_recurring: Mapped[bool] = mapped_column(Boolean, default=False)
     recurrence: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # daily/weekly/monthly
-    status: Mapped[ReminderStatus] = mapped_column(SAEnum(ReminderStatus), default=ReminderStatus.ACTIVE)
+    status: Mapped[ReminderStatus] = mapped_column(SAEnum(ReminderStatus, native_enum=False), default=ReminderStatus.ACTIVE)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     user: Mapped["User"] = relationship("User", back_populates="reminders")
@@ -225,7 +225,7 @@ class Plan(Base):
     steps: Mapped[Optional[str]] = mapped_column(Text, nullable=True)   # JSON array of step dicts
     start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    status: Mapped[PlanStatus] = mapped_column(SAEnum(PlanStatus), default=PlanStatus.ACTIVE)
+    status: Mapped[PlanStatus] = mapped_column(SAEnum(PlanStatus, native_enum=False), default=PlanStatus.ACTIVE)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -244,7 +244,7 @@ class Alert(Base):
     trigger_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     is_recurring: Mapped[bool] = mapped_column(Boolean, default=False)
     recurrence: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # daily/weekly/monthly
-    status: Mapped[AlertStatus] = mapped_column(SAEnum(AlertStatus), default=AlertStatus.ACTIVE)
+    status: Mapped[AlertStatus] = mapped_column(SAEnum(AlertStatus, native_enum=False), default=AlertStatus.ACTIVE)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     user: Mapped["User"] = relationship("User", back_populates="alerts")
@@ -255,13 +255,13 @@ class Puzzle(Base):
     __tablename__ = "puzzles"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
-    puzzle_type: Mapped[PuzzleType] = mapped_column(SAEnum(PuzzleType), nullable=False)
+    puzzle_type: Mapped[PuzzleType] = mapped_column(SAEnum(PuzzleType, native_enum=False), nullable=False)
     topic: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # linked to interest topics
     question: Mapped[str] = mapped_column(Text, nullable=False)
     options: Mapped[Optional[str]] = mapped_column(Text, nullable=True)   # JSON array (for MCQ)
     answer: Mapped[str] = mapped_column(String(500), nullable=False)
     hint: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    difficulty: Mapped[PuzzleDifficulty] = mapped_column(SAEnum(PuzzleDifficulty), default=PuzzleDifficulty.MEDIUM)
+    difficulty: Mapped[PuzzleDifficulty] = mapped_column(SAEnum(PuzzleDifficulty, native_enum=False), default=PuzzleDifficulty.MEDIUM)
     language: Mapped[str] = mapped_column(String(10), default="en")
     coins_reward: Mapped[int] = mapped_column(Integer, default=10)
     serve_count: Mapped[int] = mapped_column(Integer, default=0)  # how many times served
