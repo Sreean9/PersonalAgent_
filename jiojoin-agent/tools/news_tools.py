@@ -1,22 +1,28 @@
 """tools/news_tools.py – Real-time news headlines via NewsAPI."""
 from __future__ import annotations
 
+import logging
+
 import httpx
 
 from config import get_settings
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# Maps UI/agent category names → NewsAPI params
+# NewsAPI free plan does not reliably return results for country=in.
+# For India-specific categories we use the /everything endpoint with keyword
+# search (requires q=, language=, sortBy=) which works on the free plan.
+# World/general uses /top-headlines with language=en (no country filter).
 _CATEGORY_CONFIG: dict[str, dict] = {
-    "india":         {"country": "in", "category": "general"},
-    "sports":        {"country": "in", "category": "sports"},
-    "world":         {"country": "",   "category": "general"},
-    "business":      {"country": "in", "category": "business"},
-    "tech":          {"country": "in", "category": "technology"},
-    "entertainment": {"country": "in", "category": "entertainment"},
-    "health":        {"country": "in", "category": "health"},
-    "science":       {"country": "in", "category": "science"},
+    "india":         {"endpoint": "everything", "q": "india news today",               "language": "en", "sortBy": "publishedAt"},
+    "sports":        {"endpoint": "everything", "q": "cricket india sports news",      "language": "en", "sortBy": "publishedAt"},
+    "world":         {"endpoint": "top-headlines",                                     "language": "en"},
+    "business":      {"endpoint": "everything", "q": "india business economy market",  "language": "en", "sortBy": "publishedAt"},
+    "tech":          {"endpoint": "everything", "q": "india technology startup AI",    "language": "en", "sortBy": "publishedAt"},
+    "entertainment": {"endpoint": "everything", "q": "india bollywood entertainment",  "language": "en", "sortBy": "publishedAt"},
+    "health":        {"endpoint": "everything", "q": "india health medical news",      "language": "en", "sortBy": "publishedAt"},
+    "science":       {"endpoint": "everything", "q": "india science research space",   "language": "en", "sortBy": "publishedAt"},
 }
 
 
@@ -27,14 +33,8 @@ async def fetch_news(
     """
     Fetch top headlines from NewsAPI.
 
-    Args:
-        category: One of india, sports, world, business, tech,
-                  entertainment, health, science.
-        query:    Optional keyword to narrow results.
-        page_size: Number of articles to return (max 10).
-
-    Returns:
-        dict with 'category', 'articles' list, and 'total'.
+    Uses /everything with keyword search for India-specific categories,
+    and /top-headlines for the World category.
     """
     if not settings.news_api_key:
         return {
@@ -44,25 +44,32 @@ async def fetch_news(
         }
 
     cfg = _CATEGORY_CONFIG.get(category.lower(), _CATEGORY_CONFIG["india"])
+    endpoint = cfg.get("endpoint", "top-headlines")
+
     params: dict = {
         "apiKey": settings.news_api_key,
         "pageSize": min(page_size, 10),
-        "category": cfg["category"],
     }
-    if cfg["country"]:
-        params["country"] = cfg["country"]
+
+    if endpoint == "everything":
+        params["q"] = cfg["q"]
+        params["language"] = cfg.get("language", "en")
+        params["sortBy"] = cfg.get("sortBy", "publishedAt")
     else:
-        params["language"] = "en"  # only add language when no country filter
+        # top-headlines (World)
+        if "language" in cfg:
+            params["language"] = cfg["language"]
+
+    url = f"{settings.news_api_base_url}/{endpoint}"
+    logger.info("NewsAPI request: %s %s", endpoint, {k: v for k, v in params.items() if k != 'apiKey'})
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(
-                settings.news_api_base_url + "/top-headlines",
-                params=params,
-            )
+            resp = await client.get(url, params=params)
             resp.raise_for_status()
             data = resp.json()
 
+        raw_count = len(data.get("articles", []))
         articles = [
             {
                 "title": a.get("title", ""),
@@ -75,7 +82,9 @@ async def fetch_news(
             if a.get("title") and "[Removed]" not in a.get("title", "")
         ]
 
+        logger.info("NewsAPI response: category=%s raw=%d filtered=%d", category, raw_count, len(articles))
         return {"category": category, "articles": articles, "total": len(articles)}
 
     except Exception as exc:
+        logger.error("NewsAPI error for category=%s: %s", category, exc)
         return {"category": category, "articles": [], "error": str(exc)}
