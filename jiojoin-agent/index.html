@@ -25,30 +25,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
 .shell{width:100%;height:100%;background:var(--bg);position:fixed;top:0;left:0;display:flex;flex-direction:column;overflow:hidden}
 .hidden{display:none!important}
 
-/* ── Auth Screen ── */
-.auth-screen{
-  position:fixed;inset:0;background:linear-gradient(160deg,var(--blue-dark) 0%,var(--blue) 60%,var(--blue-lt) 100%);
-  display:flex;align-items:center;justify-content:center;padding:24px;z-index:100;
-}
-.auth-card{
-  background:#fff;border-radius:24px;padding:32px 24px;width:100%;max-width:360px;
-  box-shadow:0 20px 60px rgba(0,0,0,.3);
-}
-.auth-logo{width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--blue-lt));display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;}
-.auth-title{text-align:center;font-size:20px;font-weight:800;color:var(--text);margin-bottom:4px}
-.auth-sub{text-align:center;font-size:12px;color:var(--text3);margin-bottom:24px}
-.auth-tabs{display:flex;background:var(--bg);border-radius:10px;padding:3px;margin-bottom:20px;gap:3px}
-.auth-tab{flex:1;padding:8px;text-align:center;font-size:13px;font-weight:600;border-radius:8px;cursor:pointer;color:var(--text3);border:none;background:transparent;transition:all .2s}
-.auth-tab.active{background:#fff;color:var(--blue);box-shadow:var(--shadow)}
-.auth-field{margin-bottom:14px}
-.auth-field label{display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px}
-.auth-field input{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:var(--radius-xs);font-size:14px;outline:none;color:var(--text);background:var(--bg);transition:border-color .2s}
-.auth-field input:focus{border-color:var(--blue);background:#fff}
-.auth-btn{width:100%;padding:13px;background:linear-gradient(135deg,var(--blue),var(--blue-lt));color:#fff;border:none;border-radius:var(--radius-xs);font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;transition:opacity .2s}
-.auth-btn:disabled{opacity:.6;cursor:not-allowed}
-.auth-err{background:var(--red-pale);color:var(--red);font-size:12px;padding:9px 12px;border-radius:var(--radius-xs);margin-top:12px;display:none;text-align:center;font-weight:500}
-.auth-err.show{display:block}
-.backend-note{font-size:10px;color:var(--text3);text-align:center;margin-top:16px;line-height:1.5}
 
 /* ── Status bar ── */
 .status-bar{height:40px;background:var(--blue-dark);display:flex;align-items:center;justify-content:space-between;padding:0 18px;flex-shrink:0}
@@ -169,6 +145,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
 .spinner-txt{color:rgba(255,255,255,.8);font-size:14px;font-weight:500}
 ::-webkit-scrollbar{width:3px}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px}
+.coins-chip{background:rgba(255,255,255,.18);border-radius:16px;padding:4px 10px;display:flex;align-items:center;gap:4px;color:#fff;font-size:12px;font-weight:700;letter-spacing:.2px}
+.streak-tag{font-size:11px;font-weight:700;color:#EA580C;background:#FFF7ED;padding:2px 8px;border-radius:10px;border:1px solid #FED7AA}
 </style>
 </head>
 <body>
@@ -177,34 +155,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
 <div class="spinner-screen" id="spinner">
   <div class="spinner"></div>
   <div class="spinner-txt">Starting JioJoin AI…</div>
-</div>
-
-<!-- Auth screen -->
-<div class="auth-screen hidden" id="auth-screen">
-  <div class="auth-card">
-    <div class="auth-logo">🤖</div>
-    <div class="auth-title">JioJoin AI</div>
-    <div class="auth-sub">Your personal AI assistant</div>
-    <div class="auth-tabs">
-      <button class="auth-tab active" id="tab-login" onclick="switchTab('login')">Sign In</button>
-      <button class="auth-tab" id="tab-register" onclick="switchTab('register')">Register</button>
-    </div>
-    <div class="auth-field">
-      <label>Username</label>
-      <input type="text" id="auth-user" placeholder="Enter username" autocomplete="username" autocorrect="off" autocapitalize="off"/>
-    </div>
-    <div class="auth-field" id="email-field" style="display:none">
-      <label>Email</label>
-      <input type="email" id="auth-email" placeholder="Enter email"/>
-    </div>
-    <div class="auth-field">
-      <label>Password</label>
-      <input type="password" id="auth-pass" placeholder="Enter password" autocomplete="current-password"/>
-    </div>
-    <button class="auth-btn" id="auth-btn" onclick="submitAuth()">Sign In</button>
-    <div class="auth-err" id="auth-err"></div>
-    <div class="backend-note">Connected to JioJoin AI Backend</div>
-  </div>
 </div>
 
 <!-- Main app -->
@@ -219,12 +169,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
       <div class="topbar-name">Jio AI Assistant</div>
       <div class="topbar-sub"><span class="online-dot"></span><span>Live · Llama 3.3-70b</span></div>
     </div>
+    <div class="coins-chip hidden" id="coins-chip">🪙 <span id="coins-val">0</span></div>
     <button class="icon-btn" onclick="newChat()" title="New chat">✏️</button>
-    <button class="icon-btn" onclick="logout()" title="Sign out" style="margin-left:4px">🚪</button>
   </div>
   <div class="modebar">
     <span class="mode-pill">Production</span>
     <span class="modebar-txt">Live AI · Real database</span>
+    <span class="streak-tag hidden" id="streak-tag">🔥 0 day streak</span>
     <span class="user-chip" id="user-chip">User</span>
   </div>
 
@@ -296,126 +247,67 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
 
 <script>
 // ═══════════════════════════════════════════════════════════════
-//  CONFIG — Update BACKEND_URL after Railway deployment
+//  CONFIG
 // ═══════════════════════════════════════════════════════════════
-const BACKEND_URL = 'https://YOUR-APP.railway.app'; // ← UPDATE THIS after Railway deploy
+const BACKEND_URL = 'https://personalagent-production-4284.up.railway.app';
 
 // ═══════════════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════════════
-let jwtToken   = null;
-let sessionId  = null;
-let username   = null;
-let authMode   = 'login'; // 'login' | 'register'
-let busy       = false;
+let jwtToken  = null;
+let sessionId = null;
+let username  = null;
+let busy      = false;
 
 // ═══════════════════════════════════════════════════════════════
-//  INIT
+//  INIT — silent SSO using params from JioJoin app
+//  JioJoin native app opens WebView with URL like:
+//    https://agent.railway.app/?uid=USER123&name=Sridevi&lang=en
 // ═══════════════════════════════════════════════════════════════
 window.onload = async () => {
   updateClock();
   setInterval(updateClock, 30000);
 
-  // Check backend is reachable
+  const params     = new URLSearchParams(window.location.search);
+  const jioUserId  = params.get('uid')  || 'demo_user';
+  const jioName    = params.get('name') || 'JioJoin User';
+  const jioLang    = params.get('lang') || 'en';
+
   try {
-    const res = await fetch(BACKEND_URL + '/health', { signal: AbortSignal.timeout(8000) });
-    if (res.ok) {
-      hide('spinner'); show('auth-screen');
-    } else {
-      showSpinnerErr('Backend returned error ' + res.status);
-    }
+    const res = await fetch(BACKEND_URL + '/auth/jiojoin-sso', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jio_user_id: jioUserId, name: jioName, preferred_language: jioLang }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error('SSO failed (' + res.status + ')');
+    const data = await res.json();
+    jwtToken = data.access_token;
+    username = data.name;
   } catch (e) {
-    showSpinnerErr('Cannot reach backend.\n\nUpdate BACKEND_URL in index.html\nwith your Railway URL.');
+    showSpinnerErr('Cannot connect to JioJoin AI.\n\n' + e.message);
+    return;
   }
+
+  document.getElementById('user-chip').textContent = '👤 ' + username;
+  hide('spinner'); show('main-app');
+  renderWelcome();
+  await Promise.all([loadTodos(), loadReminders(), loadNews(), loadCoins(), loadStreak()]);
 };
 
 function showSpinnerErr(msg) {
-  document.querySelector('.spinner-txt').innerHTML =
-    '⚠️ ' + msg.replace(/\n/g,'<br/>');
+  document.querySelector('.spinner-txt').innerHTML = '⚠️ ' + msg.replace(/\n/g, '<br/>');
   document.querySelector('.spinner').style.display = 'none';
 }
 
 function updateClock() {
   const n = new Date();
   document.getElementById('clock').textContent =
-    n.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}).replace(' ','');
+    n.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(' ', '');
 }
 
-function show(id){ document.getElementById(id).classList.remove('hidden'); }
-function hide(id){ document.getElementById(id).classList.add('hidden'); }
-
-// ═══════════════════════════════════════════════════════════════
-//  AUTH
-// ═══════════════════════════════════════════════════════════════
-function switchTab(mode) {
-  authMode = mode;
-  document.getElementById('tab-login').classList.toggle('active', mode === 'login');
-  document.getElementById('tab-register').classList.toggle('active', mode === 'register');
-  document.getElementById('auth-btn').textContent = mode === 'login' ? 'Sign In' : 'Create Account';
-  document.getElementById('email-field').style.display = mode === 'register' ? 'block' : 'none';
-  document.getElementById('auth-err').classList.remove('show');
-}
-
-async function submitAuth() {
-  const user = document.getElementById('auth-user').value.trim();
-  const pass = document.getElementById('auth-pass').value.trim();
-  const email = document.getElementById('auth-email').value.trim();
-  const errEl = document.getElementById('auth-err');
-  const btn = document.getElementById('auth-btn');
-
-  if (!user || !pass) { showAuthErr('Please enter username and password.'); return; }
-  if (authMode === 'register' && !email) { showAuthErr('Please enter your email.'); return; }
-
-  btn.disabled = true;
-  btn.textContent = authMode === 'login' ? 'Signing in…' : 'Creating account…';
-  errEl.classList.remove('show');
-
-  try {
-    let token;
-    if (authMode === 'register') {
-      const res = await apiCall('/auth/register', 'POST', { username: user, email, password: pass });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.detail || 'Registration failed'); }
-      // Auto-login after register
-      const lr = await apiCall('/auth/login', 'POST', { username: user, password: pass });
-      if (!lr.ok) { const d = await lr.json(); throw new Error(d.detail || 'Login failed'); }
-      const ld = await lr.json();
-      token = ld.access_token;
-    } else {
-      const res = await apiCall('/auth/login', 'POST', { username: user, password: pass });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.detail || 'Invalid credentials'); }
-      const d = await res.json();
-      token = d.access_token;
-    }
-
-    jwtToken = token;
-    username = user;
-    document.getElementById('user-chip').textContent = '👤 ' + user;
-    hide('auth-screen'); show('main-app');
-    renderWelcome();
-    await Promise.all([loadTodos(), loadReminders(), loadNews()]);
-
-  } catch (e) {
-    showAuthErr(e.message);
-  }
-
-  btn.disabled = false;
-  btn.textContent = authMode === 'login' ? 'Sign In' : 'Create Account';
-}
-
-function showAuthErr(msg) {
-  const el = document.getElementById('auth-err');
-  el.textContent = msg; el.classList.add('show');
-}
-
-function logout() {
-  jwtToken = null; sessionId = null; username = null;
-  hide('main-app');
-  document.getElementById('auth-user').value = '';
-  document.getElementById('auth-pass').value = '';
-  document.getElementById('auth-err').classList.remove('show');
-  show('auth-screen');
-  toast('Signed out', 'info');
-}
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
 
 // ═══════════════════════════════════════════════════════════════
 //  API HELPERS
@@ -471,6 +363,29 @@ async function loadNews() {
     if (!res.ok) return;
     const data = await res.json();
     renderNews(data);
+  } catch { /* silent */ }
+}
+
+async function loadCoins() {
+  try {
+    const res = await apiCall('/coins/balance');
+    if (!res.ok) return;
+    const data = await res.json();
+    const chip = document.getElementById('coins-chip');
+    document.getElementById('coins-val').textContent = data.balance ?? 0;
+    chip.classList.remove('hidden');
+  } catch { /* silent */ }
+}
+
+async function loadStreak() {
+  try {
+    const res = await apiCall('/streak');
+    if (!res.ok) return;
+    const data = await res.json();
+    const streak = data.current_streak ?? 0;
+    const tag = document.getElementById('streak-tag');
+    tag.textContent = `🔥 ${streak} day${streak !== 1 ? 's' : ''} streak`;
+    if (streak > 0) tag.classList.remove('hidden');
   } catch { /* silent */ }
 }
 
@@ -590,8 +505,8 @@ async function sendText(txt) {
     sessionId = data.session_id;
     hideTyping();
     addBubble('bot', data.reply, data.tools_used || []);
-    // Refresh todos/reminders after chat (agent may have updated them)
-    await Promise.all([loadTodos(), loadReminders()]);
+    // Refresh todos/reminders/coins after chat (agent may have updated them)
+    await Promise.all([loadTodos(), loadReminders(), loadCoins()]);
   } catch(e) {
     hideTyping();
     addBubble('bot', '⚠️ **Error:** ' + e.message + '\n\nPlease check your connection and try again.', []);
