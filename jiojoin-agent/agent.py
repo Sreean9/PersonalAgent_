@@ -176,14 +176,14 @@ class JioJoinAgent:
             except Exception as exc:
                 if getattr(exc, "status_code", None) == 400:
                     # Groq rejected a malformed tool call — retry without tools.
-                    # The model will reply in plain text (no tool results) but
-                    # the user will never see a 400 error.
+                    # max_tokens=512 keeps the retry fast so we stay within the
+                    # client timeout even after the first failed call.
                     logger.warning("400 tool_use_failed in agent loop round %d — retrying without tools. %s", round_num + 1, exc)
                     response, lang = await self._router.chat(
                         messages=messages,
                         tools=None,
-                        temperature=settings.agent_temperature,
-                        max_tokens=2048,
+                        temperature=0.3,
+                        max_tokens=512,
                         user_message_raw=raw,
                     )
                 else:
