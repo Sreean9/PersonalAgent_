@@ -167,27 +167,42 @@ async def jiojoin_sso(payload: JioJoinSSO, db: AsyncSession = Depends(get_db)):
     Creates a user account on first visit, then returns a JWT every time.
     No password required — trust comes from the JioJoin app itself.
     """
-    synthetic_email = f"{payload.jio_user_id}@jiojoin.internal"
-    result = await db.execute(select(User).where(User.email == synthetic_email))
-    user = result.scalar_one_or_none()
+    try:
+        synthetic_email = f"{payload.jio_user_id}@jiojoin.internal"
+        result = await db.execute(select(User).where(User.email == synthetic_email))
+        user = result.scalar_one_or_none()
 
-    if not user:
-        user = User(
-            name=payload.name,
-            email=synthetic_email,
-            hashed_password="",          # SSO users never log in with a password
-            preferred_language=payload.preferred_language,
-        )
-        db.add(user)
-        db.add(Streak(user_id=user.id))
-        await db.commit()
-        await db.refresh(user)
-    elif user.name != payload.name:
-        user.name = payload.name        # keep display name in sync with JioJoin
-        await db.commit()
+        if not user:
+            user = User(
+                name=payload.name,
+                email=synthetic_email,
+                hashed_password="",
+                preferred_language=payload.preferred_language,
+            )
+            db.add(user)
+            await db.flush()  # assigns user.id without committing
 
-    token = create_access_token(user.id, user.name)
-    return TokenResponse(access_token=token, user_id=user.id, name=user.name)
+            # Streak creation is best-effort — won't block login if table is missing
+            try:
+                db.add(Streak(user_id=user.id))
+                await db.commit()
+            except Exception:
+                await db.rollback()
+                # Re-insert user without streak so they can still log in
+                db.add(user)
+                await db.commit()
+
+            await db.refresh(user)
+        elif user.name != payload.name:
+            user.name = payload.name
+            await db.commit()
+
+        token = create_access_token(user.id, user.name)
+        return TokenResponse(access_token=token, user_id=user.id, name=user.name)
+
+    except Exception as exc:
+        logger.exception("SSO error: %s", exc)
+        raise HTTPException(status_code=500, detail=f"SSO error: {exc}")
 
 
 @app.post("/auth/register", response_model=TokenResponse, status_code=201, tags=["Auth"])
