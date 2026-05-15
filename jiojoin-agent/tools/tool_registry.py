@@ -271,14 +271,10 @@ TOOLS: list[dict] = [
                     "category": {
                         "type": "string",
                         "enum": ["india", "sports", "world", "business", "tech", "entertainment", "health", "science"],
-                        "description": "News category. Use 'india' for general Indian news, 'sports' for cricket/sports, 'world' for international.",
-                    },
-                    "query": {
-                        "type": "string",
-                        "description": "Optional keyword to narrow results (e.g. 'cricket', 'budget', 'elections').",
+                        "description": "News category. Use 'india' for general Indian news, 'sports' for cricket/sports, 'world' for international news.",
                     },
                 },
-                "required": [],
+                "required": ["category"],
             },
         },
     },
