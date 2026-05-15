@@ -197,7 +197,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
         <div class="screen-title">My Tasks</div>
         <div class="screen-sub" id="tasks-sub">Loading…</div>
       </div>
-      <button class="refresh-btn" onclick="loadTodos()">↻ Refresh</button>
+      <button class="refresh-btn" onclick="loadTodos(true)">↻ Refresh</button>
     </div>
     <div class="list-body" id="todo-list"></div>
   </div>
@@ -335,12 +335,28 @@ function showScreen(name) {
 // ═══════════════════════════════════════════════════════════════
 //  DATA LOADERS
 // ═══════════════════════════════════════════════════════════════
-async function loadTodos() {
+async function loadTodos(clearCompleted = false) {
   try {
     const res = await apiCall('/todos');
     if (!res.ok) return;
-    const todos = await res.json();
+    let todos = await res.json();
+    if (clearCompleted) {
+      // Delete completed tasks from DB, then reload pending ones
+      const done = todos.filter(t => t.status === 'completed');
+      await Promise.all(done.map(t => apiCall('/todos/' + t.id, 'DELETE').catch(() => {})));
+      todos = todos.filter(t => t.status !== 'completed');
+      if (done.length) toast(done.length + ' completed task' + (done.length > 1 ? 's' : '') + ' cleared', 'ok');
+    }
     renderTodos(todos);
+  } catch { /* silent */ }
+}
+
+async function toggleTodo(id, currentStatus) {
+  const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+  try {
+    await apiCall('/todos/' + id, 'PUT', { status: newStatus });
+    await loadTodos();
+    if (newStatus === 'completed') toast('Task marked done! ✓', 'ok');
   } catch { /* silent */ }
 }
 
@@ -396,7 +412,7 @@ function renderTodos(todos = []) {
   else badge.style.display = 'none';
   if (!todos.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div class="empty-msg">No tasks yet.<br/>Ask Jio to add one in Chat!</div></div>'; return; }
   el.innerHTML = todos.slice().reverse().map(t => `
-    <div class="todo-card ${t.priority||'medium'} ${t.status==='completed'?'done':''}">
+    <div class="todo-card ${t.priority||'medium'} ${t.status==='completed'?'done':''}" onclick="toggleTodo('${t.id}','${t.status}')">
       <div class="chk ${t.status==='completed'?'ticked':''}">${t.status==='completed'?'✓':''}</div>
       <div class="todo-body">
         <div class="todo-title ${t.status==='completed'?'done':''}">${esc(t.title)}</div>
