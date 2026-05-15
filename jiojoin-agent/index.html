@@ -280,7 +280,10 @@ window.onload = async () => {
       body: JSON.stringify({ jio_user_id: jioUserId, name: jioName, preferred_language: jioLang }),
       signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok) throw new Error('SSO failed (' + res.status + ')');
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error('SSO ' + res.status + ': ' + (errBody.detail || 'unknown error'));
+    }
     const data = await res.json();
     jwtToken = data.access_token;
     username = data.name;
