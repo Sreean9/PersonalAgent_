@@ -111,14 +111,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
 .chip.pl{background:var(--green-pale);color:var(--green)}
 .chip.st{background:var(--blue-pale);color:var(--blue)}
 .chip.due{background:#F5F3FF;color:#7C3AED}
-.rem-card{background:var(--surface);border-radius:var(--radius);padding:13px;margin-bottom:9px;box-shadow:var(--shadow);display:flex;align-items:center;gap:11px}
-.rem-icon{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#FEF3C7,#FDE68A);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
-.rem-body{flex:1;min-width:0}
-.rem-title{font-size:13px;font-weight:600}
-.rem-time{font-size:11px;color:var(--text3);margin-top:2px}
-.news-card{background:var(--surface);border-radius:var(--radius);padding:13px;margin-bottom:9px;box-shadow:var(--shadow);border-top:3px solid var(--blue-lt)}
-.news-cat{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--blue);margin-bottom:3px}
-.news-title{font-size:13px;font-weight:700;margin-bottom:4px}
+.cat-bar{display:flex;gap:6px;padding:10px 11px;overflow-x:auto;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;-webkit-overflow-scrolling:touch}
+.cat-bar::-webkit-scrollbar{display:none}
+.cat-pill{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;border:1.5px solid var(--border);background:var(--bg);color:var(--text2);cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;flex-shrink:0}
+.cat-pill.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.news-card{background:var(--surface);border-radius:var(--radius);padding:13px;margin-bottom:9px;box-shadow:var(--shadow);border-left:3px solid var(--blue-lt)}
+.news-meta{font-size:10px;color:var(--text3);margin-bottom:5px;font-weight:600;display:flex;gap:6px;align-items:center}
+.news-dot{width:3px;height:3px;border-radius:50%;background:var(--text3);flex-shrink:0}
+.news-title{font-size:13px;font-weight:700;margin-bottom:5px;line-height:1.4}
 .news-body{font-size:12px;color:var(--text2);line-height:1.5}
 .empty{text-align:center;padding:48px 18px;color:var(--text3)}
 .empty-icon{font-size:40px;margin-bottom:10px}
@@ -202,26 +202,22 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
     <div class="list-body" id="todo-list"></div>
   </div>
 
-  <!-- Reminders -->
-  <div class="screen" id="screen-reminders">
-    <div class="screen-hdr">
-      <div class="screen-hdr-left">
-        <div class="screen-title">Reminders</div>
-        <div class="screen-sub" id="rem-sub">Loading…</div>
-      </div>
-      <button class="refresh-btn" onclick="loadReminders()">↻ Refresh</button>
-    </div>
-    <div class="list-body" id="rem-list"></div>
-  </div>
-
   <!-- What's New -->
   <div class="screen" id="screen-news">
     <div class="screen-hdr">
       <div class="screen-hdr-left">
         <div class="screen-title">What's New</div>
-        <div class="screen-sub">Latest JioJoin updates</div>
+        <div class="screen-sub" id="news-sub">Top headlines</div>
       </div>
-      <button class="refresh-btn" onclick="loadNews()">↻ Refresh</button>
+      <button class="refresh-btn" onclick="loadNews()">↻</button>
+    </div>
+    <div class="cat-bar">
+      <button class="cat-pill active" onclick="selectCat(this,'india')">🇮🇳 India</button>
+      <button class="cat-pill" onclick="selectCat(this,'sports')">🏏 Sports</button>
+      <button class="cat-pill" onclick="selectCat(this,'world')">🌍 World</button>
+      <button class="cat-pill" onclick="selectCat(this,'business')">💼 Business</button>
+      <button class="cat-pill" onclick="selectCat(this,'tech')">📱 Tech</button>
+      <button class="cat-pill" onclick="selectCat(this,'entertainment')">🎬 Entertainment</button>
     </div>
     <div class="list-body" id="news-list"></div>
   </div>
@@ -234,11 +230,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
     <button class="nav-btn" id="nav-tasks" onclick="showScreen('tasks')">
       <div class="nav-icon-wrap"><span class="nav-icon">✅</span><span class="badge" id="task-badge" style="display:none">0</span></div><span>Tasks</span>
     </button>
-    <button class="nav-btn" id="nav-reminders" onclick="showScreen('reminders')">
-      <div class="nav-icon-wrap"><span class="nav-icon">🔔</span><span class="badge" id="rem-badge" style="display:none">0</span></div><span>Reminders</span>
-    </button>
     <button class="nav-btn" id="nav-news" onclick="showScreen('news')">
-      <div class="nav-icon-wrap"><span class="nav-icon">🆕</span></div><span>What's New</span>
+      <div class="nav-icon-wrap"><span class="nav-icon">📰</span></div><span>What's New</span>
     </button>
   </div>
 </div>
@@ -258,6 +251,7 @@ let jwtToken  = null;
 let sessionId = null;
 let username  = null;
 let busy      = false;
+let newsCat   = 'india';
 
 // ═══════════════════════════════════════════════════════════════
 //  INIT — silent SSO using params from JioJoin app
@@ -295,7 +289,7 @@ window.onload = async () => {
   document.getElementById('user-chip').textContent = '👤 ' + username;
   hide('spinner'); show('main-app');
   renderWelcome();
-  await Promise.all([loadTodos(), loadReminders(), loadNews(), loadCoins(), loadStreak()]);
+  await Promise.all([loadTodos(), loadNews(), loadCoins(), loadStreak()]);
 };
 
 function showSpinnerErr(msg) {
@@ -335,7 +329,6 @@ function showScreen(name) {
   document.getElementById('screen-' + name).classList.add('active');
   document.getElementById('nav-' + name).classList.add('active');
   if (name === 'tasks') loadTodos();
-  if (name === 'reminders') loadReminders();
   if (name === 'news') loadNews();
 }
 
@@ -351,22 +344,20 @@ async function loadTodos() {
   } catch { /* silent */ }
 }
 
-async function loadReminders() {
-  try {
-    const res = await apiCall('/reminders');
-    if (!res.ok) return;
-    const data = await res.json();
-    renderReminders(data);
-  } catch { /* silent */ }
-}
-
 async function loadNews() {
   try {
-    const res = await apiCall('/whats-new');
+    const res = await apiCall('/whats-new?category=' + newsCat);
     if (!res.ok) return;
     const data = await res.json();
     renderNews(data);
   } catch { /* silent */ }
+}
+
+function selectCat(el, cat) {
+  document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  newsCat = cat;
+  loadNews();
 }
 
 async function loadCoins() {
@@ -418,34 +409,39 @@ function renderTodos(todos = []) {
     </div>`).join('');
 }
 
-function renderReminders(data = []) {
-  const reminders = Array.isArray(data) ? data : (data.reminders || []);
-  const el = document.getElementById('rem-list');
-  document.getElementById('rem-sub').textContent = reminders.length ? `${reminders.length} active reminder${reminders.length>1?'s':''}` : 'No active reminders';
-  const badge = document.getElementById('rem-badge');
-  if (reminders.length > 0) { badge.style.display='flex'; badge.textContent=reminders.length; }
-  else badge.style.display='none';
-  if (!reminders.length) { el.innerHTML='<div class="empty"><div class="empty-icon">🔔</div><div class="empty-msg">No reminders yet.<br/>Ask Jio to set one!</div></div>'; return; }
-  el.innerHTML = reminders.map(r => `
-    <div class="rem-card">
-      <div class="rem-icon">🔔</div>
-      <div class="rem-body">
-        <div class="rem-title">${esc(r.title)}</div>
-        <div class="rem-time">${esc(r.remind_at||'')}</div>
+function renderNews(data = {}) {
+  const articles = Array.isArray(data) ? data : (data.articles || []);
+  const el = document.getElementById('news-list');
+  const sub = document.getElementById('news-sub');
+  if (data.error) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-msg">${esc(data.error)}</div></div>`;
+    return;
+  }
+  if (!articles.length) {
+    sub.textContent = 'No stories found';
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📰</div><div class="empty-msg">No stories found.<br/>Try another category.</div></div>';
+    return;
+  }
+  sub.textContent = articles.length + ' stories';
+  el.innerHTML = articles.map(n => `
+    <div class="news-card">
+      <div class="news-meta">
+        <span>${esc(n.source||'News')}</span>
+        <span class="news-dot"></span>
+        <span>${timeAgo(n.published_at)}</span>
       </div>
+      <div class="news-title">${esc(n.title||'')}</div>
+      ${n.description ? `<div class="news-body">${esc(n.description)}</div>` : ''}
     </div>`).join('');
 }
 
-function renderNews(data = []) {
-  const items = Array.isArray(data) ? data : (data.announcements || []);
-  const el = document.getElementById('news-list');
-  if (!items.length) { el.innerHTML='<div class="empty"><div class="empty-icon">🆕</div><div class="empty-msg">No announcements yet.</div></div>'; return; }
-  el.innerHTML = items.map(n => `
-    <div class="news-card">
-      <div class="news-cat">${esc(n.category||'Update')}</div>
-      <div class="news-title">${esc(n.title||'')}</div>
-      <div class="news-body">${esc(n.body||n.content||'')}</div>
-    </div>`).join('');
+function timeAgo(iso) {
+  if (!iso) return '';
+  const diff = Math.floor((Date.now() - new Date(iso)) / 60000);
+  if (diff < 1) return 'just now';
+  if (diff < 60) return diff + 'm ago';
+  if (diff < 1440) return Math.floor(diff / 60) + 'h ago';
+  return Math.floor(diff / 1440) + 'd ago';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -508,8 +504,8 @@ async function sendText(txt) {
     sessionId = data.session_id;
     hideTyping();
     addBubble('bot', data.reply, data.tools_used || []);
-    // Refresh todos/reminders/coins after chat (agent may have updated them)
-    await Promise.all([loadTodos(), loadReminders(), loadCoins()]);
+    // Refresh todos/coins after chat (agent may have updated them)
+    await Promise.all([loadTodos(), loadCoins()]);
   } catch(e) {
     hideTyping();
     addBubble('bot', '⚠️ **Error:** ' + e.message + '\n\nPlease check your connection and try again.', []);
