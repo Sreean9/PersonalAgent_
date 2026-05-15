@@ -254,26 +254,28 @@ TOOLS: list[dict] = [
         },
     },
 
-    # ── Discovery ─────────────────────────────────────────────────────────────
+    # ── News & Discovery ──────────────────────────────────────────────────────
     {
         "type": "function",
         "function": {
-            "name": "get_whats_new",
+            "name": "fetch_news",
             "description": (
-                "Fetch the latest announcements, feature updates, or offers in JioJoin. "
-                "Use when the user asks 'what's new', 'any updates', 'show announcements', etc."
+                "Fetch real-time top news headlines. "
+                "Use when the user asks for news, current events, what's happening, latest stories, "
+                "cricket/sports scores, business news, tech news, or anything news-related. "
+                "Never use brave_search or any web search tool — use this instead."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "category": {
                         "type": "string",
-                        "enum": ["feature", "offer", "general"],
-                        "description": "Filter announcements by category.",
+                        "enum": ["india", "sports", "world", "business", "tech", "entertainment", "health", "science"],
+                        "description": "News category. Use 'india' for general Indian news, 'sports' for cricket/sports, 'world' for international.",
                     },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Number of announcements to return (default 5).",
+                    "query": {
+                        "type": "string",
+                        "description": "Optional keyword to narrow results (e.g. 'cricket', 'budget', 'elections').",
                     },
                 },
                 "required": [],
