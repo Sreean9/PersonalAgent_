@@ -48,7 +48,8 @@ class Settings(BaseSettings):
 
     # ── Server ───────────────────────────────────────────────────────────────
     app_host: str = "0.0.0.0"
-    app_port: int = 8000
+    app_port: int = 8000          # Railway overrides this via PORT env var
+    port: int = 8000              # Railway injects PORT automatically
     app_env: str = "development"
 
     # ── Agent behaviour ──────────────────────────────────────────────────────
