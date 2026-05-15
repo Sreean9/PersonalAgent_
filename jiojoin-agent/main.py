@@ -276,7 +276,13 @@ async def chat(
 ):
     """Send a message to the JioJoin AI agent and receive a full response."""
     session_id = payload.session_id or str(uuid.uuid4())
-    history = await conv_memory.get_history(db, current_user.id, session_id)
+
+    # Load history — fall back to empty list if conversation table is missing
+    try:
+        history = await conv_memory.get_history(db, current_user.id, session_id)
+    except Exception as exc:
+        logger.warning("Could not load history (table missing?): %s", exc)
+        history = []
 
     try:
         reply, tools_used, detected_lang = await agent.run(
@@ -287,10 +293,15 @@ async def chat(
         )
     except Exception as exc:
         logger.exception("Agent error for user %s: %s", current_user.id, exc)
-        raise HTTPException(status_code=500, detail="The agent encountered an error. Please try again.")
+        # Include real error in detail so we can diagnose from the browser
+        raise HTTPException(status_code=500, detail=f"Agent error: {type(exc).__name__}: {exc}")
 
-    await conv_memory.add_message(db, current_user.id, session_id, "user", payload.message)
-    await conv_memory.add_message(db, current_user.id, session_id, "assistant", reply)
+    # Persist history — best-effort, never block the response
+    try:
+        await conv_memory.add_message(db, current_user.id, session_id, "user", payload.message)
+        await conv_memory.add_message(db, current_user.id, session_id, "assistant", reply)
+    except Exception as exc:
+        logger.warning("Could not save history (table missing?): %s", exc)
 
     return ChatResponse(
         reply=reply,
