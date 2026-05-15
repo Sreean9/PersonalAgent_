@@ -6,7 +6,7 @@ import json
 import logging
 import re
 
-from groq import AsyncGroq, BadRequestError
+from groq import AsyncGroq, BadRequestError, RateLimitError
 
 from config import get_settings
 from llm.base import BaseLLMProvider, LLMResponse
@@ -62,6 +62,12 @@ class GroqProvider(BaseLLMProvider):
             kwargs["tool_choice"] = "auto"
 
         try:
+            response = await self._client.chat.completions.create(**kwargs)
+        except RateLimitError:
+            # Primary model (70b) daily token limit hit — fall back to 8b instantly.
+            fallback = settings.groq_fallback_model
+            logger.warning("Primary model rate-limited. Retrying with fallback: %s", fallback)
+            kwargs["model"] = fallback
             response = await self._client.chat.completions.create(**kwargs)
         except BadRequestError as exc:
             # Groq rejects malformed XML-style tool calls the model generates.
