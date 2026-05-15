@@ -28,10 +28,6 @@ from tools.utility_tools import (
     set_reminder, list_reminders, cancel_reminder,
 )
 from tools.news_tools import fetch_news
-from tools.discovery_tools import (
-    explore_interest,
-    update_user_interests, get_user_interests,
-)
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -43,8 +39,8 @@ You help users with these core areas:
 2. **Plans** – help create and track travel, meal, study, routine, event, and bill-payment plans
 3. **Reminders & Alerts** – set, list, and manage reminders and custom alerts
 4. **Utility** – perform calculations, convert units
-5. **What's New** – show the latest JioJoin features, offers, and announcements
-6. **Explore Interests** – help users discover content and ideas based on their interests
+5. **What's New** – fetch real-time news across India, sports, world, business, tech, and entertainment
+6. **General Knowledge** – answer any question the user has from your own knowledge
 7. **Daily Puzzles & Coins** – guide users to play today's puzzle and earn coins
 
 Guidelines:
@@ -56,7 +52,6 @@ Guidelines:
 - Respond in the same language the user writes in. If the user writes in English, reply in English. If the user writes in Hindi (Devanagari OR Roman transliteration like "kaise ho", "mujhe task add karo"), ALWAYS reply in Devanagari Hindi — never in Roman transliteration.
 - Be concise, warm, and helpful. Avoid long monologues unless the user asks for detail.
 - When listing tasks or reminders, present them in a clean, easy-to-read format.
-- If you don't know a user's interests yet, ask them before calling explore_interest.
 - For reminders and alerts, confirm the time back to the user in a human-readable format.
 - When a tool returns an error, explain it simply and suggest what the user can do.
 - Never expose internal IDs unless the user specifically asks for them.
@@ -104,12 +99,6 @@ async def _dispatch_tool(
             result = await cancel_reminder(db, user_id, **args)
         elif name == "fetch_news":
             result = await fetch_news(category=args.get("category", "india"))
-        elif name == "explore_interest":
-            result = await explore_interest(db, user_id, **args)
-        elif name == "update_user_interests":
-            result = await update_user_interests(db, user_id, **args)
-        elif name == "get_user_interests":
-            result = await get_user_interests(db, user_id)
         else:
             result = {"error": f"Unknown tool: {name}"}
 
