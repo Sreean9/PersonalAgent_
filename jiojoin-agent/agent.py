@@ -165,13 +165,29 @@ class JioJoinAgent:
 
             # On round 0 pass the raw user message for language detection
             raw = user_message if round_num == 0 else ""
-            response, lang = await self._router.chat(
-                messages=messages,
-                tools=TOOLS,
-                temperature=settings.agent_temperature,
-                max_tokens=2048,
-                user_message_raw=raw,
-            )
+            try:
+                response, lang = await self._router.chat(
+                    messages=messages,
+                    tools=TOOLS,
+                    temperature=settings.agent_temperature,
+                    max_tokens=2048,
+                    user_message_raw=raw,
+                )
+            except Exception as exc:
+                if getattr(exc, "status_code", None) == 400:
+                    # Groq rejected a malformed tool call — retry without tools.
+                    # The model will reply in plain text (no tool results) but
+                    # the user will never see a 400 error.
+                    logger.warning("400 tool_use_failed in agent loop round %d — retrying without tools. %s", round_num + 1, exc)
+                    response, lang = await self._router.chat(
+                        messages=messages,
+                        tools=None,
+                        temperature=settings.agent_temperature,
+                        max_tokens=2048,
+                        user_message_raw=raw,
+                    )
+                else:
+                    raise
             if round_num == 0:
                 detected_lang = lang
 
