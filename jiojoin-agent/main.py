@@ -40,11 +40,16 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
+import pathlib
+
+from pydantic import BaseModel
+
 from fastapi import (
     FastAPI, Depends, HTTPException, Query, status,
     WebSocket, WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -133,6 +138,13 @@ app.add_middleware(
 #  Health
 # ─────────────────────────────────────────────────────────────────────────────
 
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def serve_ui():
+    """Serve the single-page chat UI."""
+    html_path = pathlib.Path(__file__).parent / "index.html"
+    return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
+
+
 @app.get("/health", tags=["System"])
 async def health():
     return {"status": "ok", "service": "JioJoin Agent API", "version": "2.0.0"}
@@ -141,6 +153,42 @@ async def health():
 # ─────────────────────────────────────────────────────────────────────────────
 #  Auth
 # ─────────────────────────────────────────────────────────────────────────────
+
+class JioJoinSSO(BaseModel):
+    jio_user_id: str
+    name: str = "JioJoin User"
+    preferred_language: str = "en"
+
+
+@app.post("/auth/jiojoin-sso", response_model=TokenResponse, tags=["Auth"])
+async def jiojoin_sso(payload: JioJoinSSO, db: AsyncSession = Depends(get_db)):
+    """
+    Silent SSO called by the JioJoin WebView on load.
+    Creates a user account on first visit, then returns a JWT every time.
+    No password required — trust comes from the JioJoin app itself.
+    """
+    synthetic_email = f"{payload.jio_user_id}@jiojoin.internal"
+    result = await db.execute(select(User).where(User.email == synthetic_email))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        user = User(
+            name=payload.name,
+            email=synthetic_email,
+            hashed_password="",          # SSO users never log in with a password
+            preferred_language=payload.preferred_language,
+        )
+        db.add(user)
+        db.add(Streak(user_id=user.id))
+        await db.commit()
+        await db.refresh(user)
+    elif user.name != payload.name:
+        user.name = payload.name        # keep display name in sync with JioJoin
+        await db.commit()
+
+    token = create_access_token(user.id, user.name)
+    return TokenResponse(access_token=token, user_id=user.id, name=user.name)
+
 
 @app.post("/auth/register", response_model=TokenResponse, status_code=201, tags=["Auth"])
 async def register(payload: UserRegister, db: AsyncSession = Depends(get_db)):
