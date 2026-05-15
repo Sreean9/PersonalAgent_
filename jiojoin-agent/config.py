@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     # ── Groq / Primary LLM ──────────────────────────────────────────────────
     groq_api_key: str = "your_groq_api_key_here"
     groq_model: str = "llama-3.3-70b-versatile"
-    groq_fallback_model: str = "llama-3.1-8b-instant"  # used when primary hits rate limit
     agent_temperature: float = 0.6
 
     # ── Sarvam AI (Indian regional language translation) ─────────────────────
