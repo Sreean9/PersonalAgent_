@@ -549,10 +549,12 @@ async def get_streak(
 
 if __name__ == "__main__":
     import uvicorn
+    # Railway injects PORT env var — use it, fall back to app_port for local dev
+    port = settings.port or settings.app_port
     uvicorn.run(
         "main:app",
         host=settings.app_host,
-        port=settings.app_port,
+        port=port,
         reload=not settings.is_production,
         log_level="debug" if not settings.is_production else "info",
     )
