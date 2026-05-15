@@ -361,12 +361,19 @@ async function toggleTodo(id, currentStatus) {
 }
 
 async function loadNews() {
+  const el = document.getElementById('news-list');
+  el.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><div class="empty-msg">Loading news…</div></div>';
   try {
     const res = await apiCall('/whats-new?category=' + newsCat);
-    if (!res.ok) return;
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-msg">Error ${res.status}: ${esc(data.detail || 'Could not load news')}</div></div>`;
+      return;
+    }
     renderNews(data);
-  } catch { /* silent */ }
+  } catch (e) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-msg">Could not load news: ${esc(e.message)}</div></div>`;
+  }
 }
 
 function selectCat(el, cat) {
