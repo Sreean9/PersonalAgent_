@@ -100,7 +100,7 @@ async def _dispatch_tool(
         elif name == "cancel_reminder":
             result = await cancel_reminder(db, user_id, **args)
         elif name == "fetch_news":
-            result = await fetch_news(**args)
+            result = await fetch_news(category=args.get("category", "india"))
         elif name == "explore_interest":
             result = await explore_interest(db, user_id, **args)
         elif name == "update_user_interests":
