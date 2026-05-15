@@ -354,10 +354,18 @@ async function loadTodos(clearCompleted = false) {
 async function toggleTodo(id, currentStatus) {
   const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
   try {
-    await apiCall('/todos/' + id, 'PUT', { status: newStatus });
+    const res = await apiCall('/todos/' + id, 'PUT', { status: newStatus });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast('Could not update task: ' + (err.detail || 'Error ' + res.status), 'err');
+      return;
+    }
     await loadTodos();
     if (newStatus === 'completed') toast('Task marked done! ✓', 'ok');
-  } catch { /* silent */ }
+    else toast('Task reopened', 'info');
+  } catch (e) {
+    toast('Could not update task: ' + e.message, 'err');
+  }
 }
 
 async function loadNews() {
