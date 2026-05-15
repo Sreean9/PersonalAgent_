@@ -1,0 +1,39 @@
+# ── Core framework ────────────────────────────────────────────────────────────
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+websockets==14.1
+
+# ── LLM providers ────────────────────────────────────────────────────────────
+groq==0.12.0
+httpx==0.27.2          # Sarvam AI REST calls + general HTTP
+
+# ── Database ─────────────────────────────────────────────────────────────────
+sqlalchemy==2.0.36
+aiosqlite==0.20.0      # SQLite async (dev)
+asyncpg==0.30.0        # PostgreSQL async (prod)
+
+# ── Redis ─────────────────────────────────────────────────────────────────────
+redis[hiredis]==5.2.1  # async redis client + fast C parser
+
+# ── Auth ─────────────────────────────────────────────────────────────────────
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# ── Config & validation ───────────────────────────────────────────────────────
+pydantic==2.10.3
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+
+# ── Utility tools ─────────────────────────────────────────────────────────────
+simpleeval==0.9.13     # safe math expression evaluator
+dateparser==1.4.0      # natural language date parsing
+pytz==2024.2
+
+# ── Language detection ────────────────────────────────────────────────────────
+langdetect==1.0.9      # ISO 639-1 language detection for Sarvam routing
+
+# ── Push notifications (Firebase) ────────────────────────────────────────────
+firebase-admin==6.5.0  # FCM for Android + iOS unified
+
+# ── Background tasks ─────────────────────────────────────────────────────────
+celery[redis]==5.4.0   # async task queue (reminders, alerts, puzzle gen)
