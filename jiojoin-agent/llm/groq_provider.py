@@ -17,20 +17,33 @@ settings = get_settings()
 
 def _parse_xml_tool_calls(text: str) -> list[dict]:
     """
-    Llama occasionally emits XML-style tool calls that Groq rejects with 400:
-      <function=tool_name({"key": "val"})</function>
-    Parse them and return the standard tool_calls list format so the agent
-    loop can execute them normally.
+    Llama emits XML-style tool calls in (at least) two formats that Groq rejects:
+      Format A: <function=tool_name({"key": "val"})</function>
+      Format B: <function=tool_name>{"key": "val"}
+    Parse both and return the standard tool_calls list.
     """
-    pattern = r'<function=(\w+)\((.*?)\)(?:</function>|>)'
-    matches = re.findall(pattern, text, re.DOTALL)
-    tool_calls = []
-    for i, (name, args_str) in enumerate(matches):
-        args_str = args_str.strip() or "{}"
+    candidates: list[tuple[str, str]] = []
+
+    # Format A: <function=name({...})</function>  or  <function=name({...})>
+    for m in re.finditer(r'<function=(\w+)\((.*?)\)(?:</function>|>)', text, re.DOTALL):
+        candidates.append((m.group(1), m.group(2).strip()))
+
+    # Format B: <function=name>{...}
+    for m in re.finditer(r'<function=(\w+)>(\{.*?\})', text, re.DOTALL):
+        candidates.append((m.group(1), m.group(2).strip()))
+
+    tool_calls: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for name, args_str in candidates:
+        args_str = args_str or "{}"
+        key = (name, args_str)
+        if key in seen:
+            continue
+        seen.add(key)
         try:
             json.loads(args_str)  # validate JSON before using it
             tool_calls.append({
-                "id": f"call_recovered_{i}",
+                "id": f"call_recovered_{len(tool_calls)}",
                 "type": "function",
                 "function": {"name": name, "arguments": args_str},
             })
