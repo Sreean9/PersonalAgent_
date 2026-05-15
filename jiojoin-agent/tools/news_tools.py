@@ -22,7 +22,6 @@ _CATEGORY_CONFIG: dict[str, dict] = {
 
 async def fetch_news(
     category: str = "india",
-    query: str = "",
     page_size: int = 8,
 ) -> dict:
     """
@@ -48,13 +47,12 @@ async def fetch_news(
     params: dict = {
         "apiKey": settings.news_api_key,
         "pageSize": min(page_size, 10),
-        "language": "en",
         "category": cfg["category"],
     }
     if cfg["country"]:
         params["country"] = cfg["country"]
-    if query:
-        params["q"] = query
+    else:
+        params["language"] = "en"  # only add language when no country filter
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
