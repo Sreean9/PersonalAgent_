@@ -27,8 +27,9 @@ from tools.utility_tools import (
     calculate, convert_units,
     set_reminder, list_reminders, cancel_reminder,
 )
+from tools.news_tools import fetch_news
 from tools.discovery_tools import (
-    get_whats_new, explore_interest,
+    explore_interest,
     update_user_interests, get_user_interests,
 )
 
@@ -48,6 +49,9 @@ You help users with these core areas:
 
 Guidelines:
 - Always use the available tools to act; never make up data.
+- CRITICAL: You do NOT have web search, brave_search, internet search, or any real-time data tool. Never attempt to call them. If asked for live news, weather, or current events from the internet, politely explain you cannot fetch that, and offer to show JioJoin's own announcements via get_whats_new instead.
+- Only call tools that are explicitly listed in your tools schema. Never invent or guess tool names.
+- Do not repeat an action already confirmed earlier in the same conversation (e.g. if a task was added, do not add it again for a follow-up message).
 - Respond in the same language the user writes in (English, Hindi, or any Indian language).
 - Be concise, warm, and helpful. Avoid long monologues unless the user asks for detail.
 - When listing tasks or reminders, present them in a clean, easy-to-read format.
@@ -95,8 +99,8 @@ async def _dispatch_tool(
             result = await list_reminders(db, user_id, **args)
         elif name == "cancel_reminder":
             result = await cancel_reminder(db, user_id, **args)
-        elif name == "get_whats_new":
-            result = await get_whats_new(db, **args)
+        elif name == "fetch_news":
+            result = await fetch_news(**args)
         elif name == "explore_interest":
             result = await explore_interest(db, user_id, **args)
         elif name == "update_user_interests":
