@@ -172,7 +172,7 @@ class JioJoinAgent:
                     messages=messages,
                     tools=TOOLS,
                     temperature=settings.agent_temperature,
-                    max_tokens=2048,
+                    max_tokens=1024,
                     user_message_raw=raw,
                 )
             except Exception as exc:
