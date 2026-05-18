@@ -1,7 +1,7 @@
 """
-llm/sarvam_provider.py – Sarvam AI translation bridge for Indian regional languages.
+llm/sarvam_provider.py - Sarvam AI translation bridge for Indian regional languages.
 
-Strategy: translate regional-language input → English, run agent (Groq), translate reply → back.
+Strategy: translate regional-language input -> English, run agent (Groq), translate reply -> back.
 Sarvam natively supports 10 Indian languages: bn, gu, hi, kn, ml, mr, od, pa, ta, te.
 """
 
@@ -16,7 +16,7 @@ from config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# langdetect ISO 639-1 codes → Sarvam BCP-47 codes
+# langdetect ISO 639-1 codes -> Sarvam BCP-47 codes
 _LANG_TO_SARVAM: dict[str, str] = {
     "ta": "ta-IN",   # Tamil
     "te": "te-IN",   # Telugu
@@ -32,59 +32,55 @@ _LANG_TO_SARVAM: dict[str, str] = {
 # Languages Groq handles well enough without Sarvam
 _GROQ_NATIVE = {"en", "hi"}
 
-
-# Common Roman-script Hindi words that don't appear in English
+# Common Roman-script Hindi words that do not appear in English
 _ROMAN_HINDI_MARKERS = frozenset([
     "kaise", "kya", "mujhe", "aapko", "tumhe", "hain", "nahi",
     "bahut", "karo", "bata", "batao", "mera", "meri", "humara",
     "sunao", "dekho", "chahiye", "theek", "accha", "shukriya",
     "namaste", "yaar", "dost", "bhai", "acha", "hoga", "karega",
-    "karein", "batao", "dikhao", "likhao", "sunao",
+    "karein", "dikhao",
 ])
 
 
 def detect_language(text: str) -> str:
     """
-    Return ISO 639-1 language code using Unicode script detection.
+    Return ISO 639-1 language code using Unicode block detection.
 
-    Uses Unicode block ranges — deterministic and never misidentifies
-    English text with Indian city/place names as Hindi.
+    Checks Unicode code-point ranges directly -- deterministic and never
+    misidentifies English text containing Indian city/place names as Hindi.
+    No external library required.
     """
     if not text or not text.strip():
         return "en"
     t = text.strip()
-    # Devanagari script → Hindi
-    if any('ऀ' <= c <= 'ॿ' for c in t):
+
+    def _has_block(lo: int, hi: int) -> bool:
+        return any(lo <= ord(c) <= hi for c in t)
+
+    if _has_block(0x0900, 0x097F):   # Devanagari -> Hindi
         return "hi"
-    # Tamil
-    if any('஀' <= c <= '௿' for c in t):
-        return "ta"
-    # Telugu
-    if any('ఀ' <= c <= '౿' for c in t):
-        return "te"
-    # Bengali
-    if any('ঀ' <= c <= '৿' for c in t):
+    if _has_block(0x0980, 0x09FF):   # Bengali
         return "bn"
-    # Malayalam
-    if any('ഀ' <= c <= 'ൿ' for c in t):
-        return "ml"
-    # Gujarati
-    if any('઀' <= c <= '૿' for c in t):
-        return "gu"
-    # Kannada
-    if any('ಀ' <= c <= '೿' for c in t):
-        return "kn"
-    # Punjabi (Gurmukhi)
-    if any('਀' <= c <= '੿' for c in t):
+    if _has_block(0x0A00, 0x0A7F):   # Gurmukhi (Punjabi)
         return "pa"
-    # Odia
-    if any('଀' <= c <= '୿' for c in t):
+    if _has_block(0x0A80, 0x0AFF):   # Gujarati
+        return "gu"
+    if _has_block(0x0B00, 0x0B7F):   # Odia
         return "or"
-    # Latin-script only — check for Roman transliteration Hindi markers
+    if _has_block(0x0B80, 0x0BFF):   # Tamil
+        return "ta"
+    if _has_block(0x0C00, 0x0C7F):   # Telugu
+        return "te"
+    if _has_block(0x0C80, 0x0CFF):   # Kannada
+        return "kn"
+    if _has_block(0x0D00, 0x0D7F):   # Malayalam
+        return "ml"
+
+    # Latin-script only -- check for Roman transliteration Hindi markers
     words = set(t.lower().split())
     if len(words & _ROMAN_HINDI_MARKERS) >= 2:
         return "hi"
-    # Default: Latin/ASCII text is English
+
     return "en"
 
 
@@ -116,17 +112,6 @@ class SarvamTranslator:
         source_lang: str,
         target_lang: str,
     ) -> str:
-        """
-        Translate text between Sarvam BCP-47 language codes.
-
-        Args:
-            text: Input text.
-            source_lang: e.g. "ta-IN"
-            target_lang: e.g. "en-IN"
-
-        Returns:
-            Translated text, or the original on failure.
-        """
         url = f"{settings.sarvam_base_url}/translate"
         payload = {
             "input": text,
@@ -137,7 +122,6 @@ class SarvamTranslator:
             "model": "mayura:v1",
             "enable_preprocessing": True,
         }
-
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(url, json=payload, headers=self._headers)
