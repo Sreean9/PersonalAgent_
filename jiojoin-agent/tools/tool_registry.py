@@ -254,6 +254,30 @@ TOOLS: list[dict] = [
         },
     },
 
+    # ── Weather ───────────────────────────────────────────────────────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": (
+                "Get real-time current weather for any city. "
+                "Use when the user asks about weather, temperature, climate, rain, humidity, "
+                "or 'what is it like outside' for any location."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "description": "City name, e.g. 'Hyderabad', 'Mumbai', 'New Delhi'. "
+                                       "Append country code for disambiguation: 'Springfield,US'.",
+                    },
+                },
+                "required": ["city"],
+            },
+        },
+    },
+
     # ── News & Discovery ──────────────────────────────────────────────────────
     {
         "type": "function",
