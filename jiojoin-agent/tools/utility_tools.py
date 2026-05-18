@@ -12,11 +12,15 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import dateparser
+import httpx
 from simpleeval import simple_eval, EvalWithCompoundTypes
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import get_settings
 from models import Reminder, ReminderStatus
+
+settings = get_settings()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -175,6 +179,55 @@ def convert_units(value: float, from_unit: str, to_unit: str) -> dict:
     base_value = value * _CONVERSIONS[fu]
     result = base_value / _CONVERSIONS[tu]
     return {"result": round(result, 6), "from": f"{value} {from_unit}", "to": f"{result:.6g} {to_unit}"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Weather
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def get_weather(city: str) -> dict:
+    """
+    Fetch real-time weather for a city using OpenWeatherMap.
+
+    Args:
+        city: City name, e.g. 'Hyderabad', 'Mumbai', 'Delhi,IN'.
+
+    Returns:
+        Dict with temperature, humidity, conditions, wind speed.
+    """
+    if not settings.openweather_api_key:
+        return {"error": "Weather service not configured. Add OPENWEATHER_API_KEY to Railway variables."}
+    if not city:
+        return {"error": "Please provide a city name."}
+
+    params = {
+        "q": city,
+        "appid": settings.openweather_api_key,
+        "units": "metric",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                "https://api.openweathermap.org/data/2.5/weather",
+                params=params,
+            )
+            if resp.status_code == 404:
+                return {"error": f"City '{city}' not found. Please check the spelling."}
+            resp.raise_for_status()
+            d = resp.json()
+
+        return {
+            "city": d["name"],
+            "country": d["sys"]["country"],
+            "temperature_c": round(d["main"]["temp"], 1),
+            "feels_like_c": round(d["main"]["feels_like"], 1),
+            "humidity_pct": d["main"]["humidity"],
+            "condition": d["weather"][0]["description"].capitalize(),
+            "wind_speed_kmh": round(d["wind"]["speed"] * 3.6, 1),
+            "visibility_km": round(d.get("visibility", 0) / 1000, 1),
+        }
+    except Exception as exc:
+        return {"error": f"Could not fetch weather: {exc}"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
