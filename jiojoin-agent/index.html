@@ -115,7 +115,22 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
 .cat-bar::-webkit-scrollbar{display:none}
 .cat-pill{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;border:1.5px solid var(--border);background:var(--bg);color:var(--text2);cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;flex-shrink:0}
 .cat-pill.active{background:var(--blue);color:#fff;border-color:var(--blue)}
-.news-card{background:var(--surface);border-radius:var(--radius);padding:13px;margin-bottom:9px;box-shadow:var(--shadow);border-left:3px solid var(--blue-lt)}
+.news-card{background:var(--surface);border-radius:var(--radius);padding:13px;margin-bottom:9px;box-shadow:var(--shadow);border-left:3px solid var(--blue-lt);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity .15s}
+.news-card:active{opacity:.7}
+/* ── Article popup ── */
+.article-modal{position:fixed;inset:0;z-index:500;display:flex;flex-direction:column;justify-content:flex-end}
+.article-modal.hidden{display:none!important}
+.modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.article-sheet{position:relative;background:var(--surface);border-radius:20px 20px 0 0;max-height:85vh;display:flex;flex-direction:column;animation:slideup .25s ease}
+.article-hdl{padding:14px 16px 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.article-src-label{font-size:12px;font-weight:700;color:var(--blue);background:var(--blue-pale);padding:3px 10px;border-radius:20px}
+.article-close{width:30px;height:30px;border-radius:50%;background:var(--bg);border:none;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2)}
+.article-body{flex:1;overflow-y:auto;padding:12px 16px 24px;-webkit-overflow-scrolling:touch}
+.article-meta-row{font-size:11px;color:var(--text3);font-weight:600;margin-bottom:10px}
+.article-title-big{font-size:16px;font-weight:800;line-height:1.45;color:var(--text);margin-bottom:10px}
+.article-desc-full{font-size:14px;color:var(--text2);line-height:1.65;margin-bottom:18px}
+.article-read-btn{width:100%;padding:13px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.article-read-btn:active{opacity:.85}
 .news-meta{font-size:10px;color:var(--text3);margin-bottom:5px;font-weight:600;display:flex;gap:6px;align-items:center}
 .news-dot{width:3px;height:3px;border-radius:50%;background:var(--text3);flex-shrink:0}
 .news-title{font-size:13px;font-weight:700;margin-bottom:5px;line-height:1.4}
@@ -167,7 +182,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
     <div class="topbar-av">🤖</div>
     <div class="topbar-info">
       <div class="topbar-name">Jio AI Assistant</div>
-      <div class="topbar-sub"><span class="online-dot"></span><span>Live · Llama 3.3-70b</span></div>
+      <div class="topbar-sub"><span class="online-dot"></span><span>Personal AI · Always on</span></div>
     </div>
     <div class="coins-chip hidden" id="coins-chip">🪙 <span id="coins-val">0</span></div>
     <button class="icon-btn" onclick="newChat()" title="New chat">✏️</button>
@@ -206,7 +221,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
   <div class="screen" id="screen-news">
     <div class="screen-hdr">
       <div class="screen-hdr-left">
-        <div class="screen-title">What's New</div>
+        <div class="screen-title">Latest News</div>
         <div class="screen-sub" id="news-sub">Top headlines</div>
       </div>
       <button class="refresh-btn" onclick="loadNews()">↻</button>
@@ -231,8 +246,25 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
       <div class="nav-icon-wrap"><span class="nav-icon">✅</span><span class="badge" id="task-badge" style="display:none">0</span></div><span>Tasks</span>
     </button>
     <button class="nav-btn" id="nav-news" onclick="showScreen('news')">
-      <div class="nav-icon-wrap"><span class="nav-icon">📰</span></div><span>What's New</span>
+      <div class="nav-icon-wrap"><span class="nav-icon">📰</span></div><span>Latest News</span>
     </button>
+  </div>
+</div>
+
+<!-- Article popup modal -->
+<div class="article-modal hidden" id="article-modal">
+  <div class="modal-overlay" onclick="closeArticle()"></div>
+  <div class="article-sheet">
+    <div class="article-hdl">
+      <span class="article-src-label" id="article-src"></span>
+      <button class="article-close" onclick="closeArticle()">✕</button>
+    </div>
+    <div class="article-body">
+      <div class="article-meta-row" id="article-time"></div>
+      <div class="article-title-big" id="article-title"></div>
+      <div class="article-desc-full" id="article-desc"></div>
+      <button class="article-read-btn" id="article-read-btn" onclick="openArticleUrl()">Read Full Article →</button>
+    </div>
   </div>
 </div>
 
@@ -247,11 +279,13 @@ const BACKEND_URL = 'https://personalagent-production-4284.up.railway.app';
 // ═══════════════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════════════
-let jwtToken  = null;
-let sessionId = null;
-let username  = null;
-let busy      = false;
-let newsCat   = 'india';
+let jwtToken        = null;
+let sessionId       = null;
+let username        = null;
+let busy            = false;
+let newsCat         = 'india';
+let newsArticles    = [];
+let currentArticleUrl = '';
 
 // ═══════════════════════════════════════════════════════════════
 //  INIT — silent SSO using params from JioJoin app
@@ -442,6 +476,7 @@ function renderTodos(todos = []) {
 
 function renderNews(data = {}) {
   const articles = Array.isArray(data) ? data : (data.articles || []);
+  newsArticles = articles;
   const el = document.getElementById('news-list');
   const sub = document.getElementById('news-sub');
   if (data.error) {
@@ -454,8 +489,8 @@ function renderNews(data = {}) {
     return;
   }
   sub.textContent = articles.length + ' stories';
-  el.innerHTML = articles.map(n => `
-    <div class="news-card">
+  el.innerHTML = articles.map((n, i) => `
+    <div class="news-card" onclick="openArticle(${i})">
       <div class="news-meta">
         <span>${esc(n.source||'News')}</span>
         <span class="news-dot"></span>
@@ -464,6 +499,27 @@ function renderNews(data = {}) {
       <div class="news-title">${esc(n.title||'')}</div>
       ${n.description ? `<div class="news-body">${esc(n.description)}</div>` : ''}
     </div>`).join('');
+}
+
+function openArticle(idx) {
+  const n = newsArticles[idx];
+  if (!n) return;
+  currentArticleUrl = n.url || '';
+  document.getElementById('article-src').textContent = n.source || 'News';
+  document.getElementById('article-time').textContent = timeAgo(n.published_at);
+  document.getElementById('article-title').textContent = n.title || '';
+  document.getElementById('article-desc').textContent = n.description || 'No description available.';
+  const btn = document.getElementById('article-read-btn');
+  btn.style.display = n.url ? 'block' : 'none';
+  document.getElementById('article-modal').classList.remove('hidden');
+}
+
+function closeArticle() {
+  document.getElementById('article-modal').classList.add('hidden');
+}
+
+function openArticleUrl() {
+  if (currentArticleUrl) window.open(currentArticleUrl, '_blank');
 }
 
 function timeAgo(iso) {
@@ -483,14 +539,14 @@ function renderWelcome() {
     <div class="welcome">
       <div class="jio-av-big">🤖</div>
       <h3>Namaste! I'm Jio 👋</h3>
-      <p>Your personal AI assistant — powered by Llama 3.3-70b.<br/>
+      <p>Your personal AI assistant.<br/>
          All your data is saved securely in the cloud.<br/>
          <strong>आप हिंदी में भी बात कर सकते हैं!</strong></p>
       <div class="qgrid">
         <span class="qp" onclick="qsend(this)">Add task: Review Q2 report by Friday</span>
         <span class="qp" onclick="qsend(this)">What is 18% of 4500?</span>
         <span class="qp" onclick="qsend(this)">Remind me to call doctor tomorrow 9am</span>
-        <span class="qp" onclick="qsend(this)">What's new in JioJoin?</span>
+        <span class="qp" onclick="qsend(this)">Show me today's India news</span>
         <span class="qp" onclick="qsend(this)">Convert 100 km to miles</span>
         <span class="qp" onclick="qsend(this)">I love cricket and personal finance</span>
         <span class="qp" onclick="qsend(this)">मेरे सभी काम दिखाओ</span>
@@ -566,7 +622,7 @@ function addBubble(role, text, tools=[]) {
   bubble.innerHTML=fmt(text); meta.appendChild(bubble);
   if(role==='bot'&&tools.length){
     const tr=document.createElement('div'); tr.className='tools-row';
-    tools.forEach(t=>{const s=document.createElement('span');s.className='tool-tag';s.textContent=t.replace(/_/g,' ');tr.appendChild(s);});
+    [...new Set(tools)].forEach(t=>{const s=document.createElement('span');s.className='tool-tag';s.textContent=t.replace(/_/g,' ');tr.appendChild(s);});
     meta.appendChild(tr);
   }
   row.appendChild(av); row.appendChild(meta); msgs.appendChild(row);
@@ -577,7 +633,14 @@ function fmt(t){
   return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
     .replace(/__(.*?)__/g,'<em>$1</em>')
+    .replace(/^[\-\*] (.+)$/gm,'• $1')
     .replace(/\n/g,'<br/>');
+}
+
+function logout() {
+  jwtToken = null;
+  sessionId = null;
+  location.reload();
 }
 
 // ═══════════════════════════════════════════════════════════════
