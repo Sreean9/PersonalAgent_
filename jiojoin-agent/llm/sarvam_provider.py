@@ -33,13 +33,59 @@ _LANG_TO_SARVAM: dict[str, str] = {
 _GROQ_NATIVE = {"en", "hi"}
 
 
+# Common Roman-script Hindi words that don't appear in English
+_ROMAN_HINDI_MARKERS = frozenset([
+    "kaise", "kya", "mujhe", "aapko", "tumhe", "hain", "nahi",
+    "bahut", "karo", "bata", "batao", "mera", "meri", "humara",
+    "sunao", "dekho", "chahiye", "theek", "accha", "shukriya",
+    "namaste", "yaar", "dost", "bhai", "acha", "hoga", "karega",
+    "karein", "batao", "dikhao", "likhao", "sunao",
+])
+
+
 def detect_language(text: str) -> str:
-    """Return ISO 639-1 language code; falls back to 'en' on failure."""
-    try:
-        from langdetect import detect
-        return detect(text)
-    except Exception:
+    """
+    Return ISO 639-1 language code using Unicode script detection.
+
+    Uses Unicode block ranges — deterministic and never misidentifies
+    English text with Indian city/place names as Hindi.
+    """
+    if not text or not text.strip():
         return "en"
+    t = text.strip()
+    # Devanagari script → Hindi
+    if any('ऀ' <= c <= 'ॿ' for c in t):
+        return "hi"
+    # Tamil
+    if any('஀' <= c <= '௿' for c in t):
+        return "ta"
+    # Telugu
+    if any('ఀ' <= c <= '౿' for c in t):
+        return "te"
+    # Bengali
+    if any('ঀ' <= c <= '৿' for c in t):
+        return "bn"
+    # Malayalam
+    if any('ഀ' <= c <= 'ൿ' for c in t):
+        return "ml"
+    # Gujarati
+    if any('઀' <= c <= '૿' for c in t):
+        return "gu"
+    # Kannada
+    if any('ಀ' <= c <= '೿' for c in t):
+        return "kn"
+    # Punjabi (Gurmukhi)
+    if any('਀' <= c <= '੿' for c in t):
+        return "pa"
+    # Odia
+    if any('଀' <= c <= '୿' for c in t):
+        return "or"
+    # Latin-script only — check for Roman transliteration Hindi markers
+    words = set(t.lower().split())
+    if len(words & _ROMAN_HINDI_MARKERS) >= 2:
+        return "hi"
+    # Default: Latin/ASCII text is English
+    return "en"
 
 
 def needs_translation(lang_code: str) -> bool:
