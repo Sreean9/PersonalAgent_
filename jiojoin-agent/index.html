@@ -679,12 +679,25 @@ function logout() {
 // ═══════════════════════════════════════════════════════════════
 //  SPEECH-TO-TEXT
 // ═══════════════════════════════════════════════════════════════
+// Map ISO 639-1 code -> BCP-47 for speech APIs
+const _SPEECH_LANG_MAP = {
+  'hi':'hi-IN','ta':'ta-IN','te':'te-IN','bn':'bn-IN',
+  'kn':'kn-IN','ml':'ml-IN','gu':'gu-IN','pa':'pa-IN',
+  'or':'or-IN','mr':'mr-IN','en':'en-IN',
+};
+function _speechLang() {
+  // Prefer explicit jioLang; fall back to browser locale
+  return _SPEECH_LANG_MAP[jioLang]
+    || _SPEECH_LANG_MAP[(navigator.language||'').split('-')[0]]
+    || 'en-IN';
+}
+
 function toggleSpeechInput() {
   if (isRecording) { stopSpeechInput(); return; }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { toast('Voice input not supported on this browser', 'err'); return; }
   recognition = new SR();
-  recognition.lang = jioLang === 'hi' ? 'hi-IN' : 'en-IN';
+  recognition.lang = _speechLang();
   recognition.continuous = false;
   recognition.interimResults = false;
   recognition.onstart = () => {
@@ -724,7 +737,7 @@ function toggleSpeak(btn, text) {
   currentSpeakBtn = btn;
   btn.textContent = '🔉'; btn.classList.add('active');
   const utt = new SpeechSynthesisUtterance(text);
-  utt.lang = jioLang === 'hi' ? 'hi-IN' : 'en-IN';
+  utt.lang = _speechLang();
   utt.rate = 0.92;
   utt.onend = () => { btn.textContent = '🔊'; btn.classList.remove('active'); currentSpeakBtn = null; };
   window.speechSynthesis.speak(utt);
