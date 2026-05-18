@@ -34,6 +34,7 @@ REST endpoints:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -74,6 +75,8 @@ from models import (
 )
 from agent import agent
 from memory import conversation as conv_memory
+from database import AsyncSessionLocal
+from notifications import init_firebase, check_and_send_due_reminders
 from tools.todo_tools import (
     add_todo as tool_add_todo,
     list_todos as tool_list_todos,
@@ -103,6 +106,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def _reminder_loop() -> None:
+    """Background task: check for due reminders every 60 seconds."""
+    while True:
+        await asyncio.sleep(60)
+        try:
+            async with AsyncSessionLocal() as db:
+                await check_and_send_due_reminders(db)
+        except Exception as exc:
+            logger.error("Reminder loop error: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting JioJoin Agent API…")
@@ -113,7 +127,14 @@ async def lifespan(app: FastAPI):
         logger.info("Redis connected.")
     except Exception as exc:
         logger.warning("Redis unavailable at startup (%s). Falling back to in-memory.", exc)
+    init_firebase()
+    reminder_task = asyncio.create_task(_reminder_loop())
     yield
+    reminder_task.cancel()
+    try:
+        await reminder_task
+    except asyncio.CancelledError:
+        pass
     await close_redis()
     logger.info("JioJoin Agent API shut down.")
 
