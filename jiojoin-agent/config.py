@@ -39,12 +39,16 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 10080  # 7 days
 
     # ── Firebase (push notifications) ────────────────────────────────────────
-    firebase_credentials_path: str = ""   # path to service-account JSON
+    firebase_credentials_json: str = ""   # full service-account JSON as string (Railway)
+    firebase_credentials_path: str = ""   # path to JSON file (local dev fallback)
     firebase_project_id: str = ""
 
     # ── NewsAPI (trending topics / alerts) ───────────────────────────────────
     news_api_key: str = ""
     news_api_base_url: str = "https://newsapi.org/v2"
+
+    # ── OpenWeatherMap ────────────────────────────────────────────────────────
+    openweather_api_key: str = ""
 
     # ── Server ───────────────────────────────────────────────────────────────
     app_host: str = "0.0.0.0"
