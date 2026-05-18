@@ -652,11 +652,6 @@ function addBubble(role, text, tools=[]) {
   const meta=document.createElement('div'); meta.className='mmeta';
   const bubble=document.createElement('div'); bubble.className='bubble '+role;
   bubble.innerHTML=fmt(text); meta.appendChild(bubble);
-  if(role==='bot'&&tools.length){
-    const tr=document.createElement('div'); tr.className='tools-row';
-    [...new Set(tools)].forEach(t=>{const s=document.createElement('span');s.className='tool-tag';s.textContent=t.replace(/_/g,' ');tr.appendChild(s);});
-    meta.appendChild(tr);
-  }
   if(role==='bot'){
     const plain=text.replace(/\*\*(.*?)\*\*/g,'$1').replace(/__(.*?)__/g,'$1').replace(/^[\-\*] /gm,'').replace(/\n/g,' ');
     const spk=document.createElement('button'); spk.className='speak-btn'; spk.textContent='🔊'; spk.title='Read aloud';
