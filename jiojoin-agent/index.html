@@ -131,6 +131,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
 .article-desc-full{font-size:14px;color:var(--text2);line-height:1.65;margin-bottom:18px}
 .article-read-btn{width:100%;padding:13px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .article-read-btn:active{opacity:.85}
+/* ── Voice input ── */
+.mic-btn{width:34px;height:34px;border-radius:50%;background:var(--bg);border:1.5px solid var(--border);color:var(--text2);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;-webkit-tap-highlight-color:transparent;transition:all .2s}
+.mic-btn.recording{background:var(--red);border-color:var(--red);color:#fff;animation:pulse-rec 1s infinite}
+@keyframes pulse-rec{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.speak-btn{background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;padding:2px 4px;border-radius:6px;-webkit-tap-highlight-color:transparent;align-self:flex-start;margin-top:2px}
+.speak-btn.active{color:var(--blue)}
 .news-meta{font-size:10px;color:var(--text3);margin-bottom:5px;font-weight:600;display:flex;gap:6px;align-items:center}
 .news-dot{width:3px;height:3px;border-radius:50%;background:var(--text3);flex-shrink:0}
 .news-title{font-size:13px;font-weight:700;margin-bottom:5px;line-height:1.4}
@@ -200,6 +206,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:-apple-sy
     <div class="input-wrap">
       <div class="input-row">
         <textarea id="inp" rows="1" placeholder="Ask Jio anything…" onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="mic-btn" id="mic-btn" onclick="toggleSpeechInput()" title="Voice input">🎤</button>
         <button class="send-btn" id="send-btn" onclick="send()">➤</button>
       </div>
     </div>
@@ -279,13 +286,18 @@ const BACKEND_URL = 'https://personalagent-production-4284.up.railway.app';
 // ═══════════════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════════════
-let jwtToken        = null;
-let sessionId       = null;
-let username        = null;
-let busy            = false;
-let newsCat         = 'india';
-let newsArticles    = [];
+let jwtToken          = null;
+let sessionId         = null;
+let username          = null;
+let jioLang           = 'en';
+let busy              = false;
+let newsCat           = 'india';
+let newsArticles      = [];
 let currentArticleUrl = '';
+let currentScreen     = 'chat';
+let recognition       = null;
+let isRecording       = false;
+let currentSpeakBtn   = null;
 
 // ═══════════════════════════════════════════════════════════════
 //  INIT — silent SSO using params from JioJoin app
@@ -299,7 +311,8 @@ window.onload = async () => {
   const params     = new URLSearchParams(window.location.search);
   const jioUserId  = params.get('uid')  || 'demo_user';
   const jioName    = params.get('name') || 'JioJoin User';
-  const jioLang    = params.get('lang') || 'en';
+  jioLang          = params.get('lang') || 'en';
+  history.replaceState({screen: 'chat'}, '');
 
   try {
     const res = await fetch(BACKEND_URL + '/auth/jiojoin-sso', {
@@ -358,6 +371,13 @@ function apiCall(path, method = 'GET', body = null) {
 //  NAV
 // ═══════════════════════════════════════════════════════════════
 function showScreen(name) {
+  if (currentScreen === name) return;
+  history.pushState({screen: name}, '');
+  _activateScreen(name);
+}
+
+function _activateScreen(name) {
+  currentScreen = name;
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('screen-' + name).classList.add('active');
@@ -365,6 +385,18 @@ function showScreen(name) {
   if (name === 'tasks') loadTodos();
   if (name === 'news') loadNews();
 }
+
+window.addEventListener('popstate', function(e) {
+  // If article modal is open, close it and re-push current screen state
+  if (!document.getElementById('article-modal').classList.contains('hidden')) {
+    document.getElementById('article-modal').classList.add('hidden');
+    history.pushState({screen: currentScreen}, '');
+    return;
+  }
+  // Navigate to the screen stored in history state
+  const screen = (e.state && e.state.screen) || 'chat';
+  _activateScreen(screen);
+});
 
 // ═══════════════════════════════════════════════════════════════
 //  DATA LOADERS
@@ -625,6 +657,12 @@ function addBubble(role, text, tools=[]) {
     [...new Set(tools)].forEach(t=>{const s=document.createElement('span');s.className='tool-tag';s.textContent=t.replace(/_/g,' ');tr.appendChild(s);});
     meta.appendChild(tr);
   }
+  if(role==='bot'){
+    const plain=text.replace(/\*\*(.*?)\*\*/g,'$1').replace(/__(.*?)__/g,'$1').replace(/^[\-\*] /gm,'').replace(/\n/g,' ');
+    const spk=document.createElement('button'); spk.className='speak-btn'; spk.textContent='🔊'; spk.title='Read aloud';
+    spk.onclick=()=>toggleSpeak(spk,plain);
+    meta.appendChild(spk);
+  }
   row.appendChild(av); row.appendChild(meta); msgs.appendChild(row);
   msgs.scrollTop=msgs.scrollHeight;
 }
@@ -641,6 +679,70 @@ function logout() {
   jwtToken = null;
   sessionId = null;
   location.reload();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SPEECH-TO-TEXT
+// ═══════════════════════════════════════════════════════════════
+function toggleSpeechInput() {
+  if (isRecording) { stopSpeechInput(); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast('Voice input not supported on this browser', 'err'); return; }
+  recognition = new SR();
+  recognition.lang = jioLang === 'hi' ? 'hi-IN' : 'en-IN';
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.onstart = () => {
+    isRecording = true;
+    const btn = document.getElementById('mic-btn');
+    btn.textContent = '⏹'; btn.classList.add('recording');
+    toast('Listening…', 'info');
+  };
+  recognition.onresult = (e) => {
+    const txt = e.results[0][0].transcript;
+    const inp = document.getElementById('inp');
+    inp.value = txt; autoResize(inp);
+    stopSpeechInput();
+  };
+  recognition.onerror = () => { toast('Could not hear you. Try again.', 'err'); stopSpeechInput(); };
+  recognition.onend = () => stopSpeechInput();
+  recognition.start();
+}
+
+function stopSpeechInput() {
+  isRecording = false;
+  if (recognition) { try { recognition.stop(); } catch(e){} recognition = null; }
+  const btn = document.getElementById('mic-btn');
+  btn.textContent = '🎤'; btn.classList.remove('recording');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TEXT-TO-SPEECH
+// ═══════════════════════════════════════════════════════════════
+function toggleSpeak(btn, text) {
+  if (!window.speechSynthesis) { toast('Text-to-speech not supported', 'err'); return; }
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    if (currentSpeakBtn) { currentSpeakBtn.textContent = '🔊'; currentSpeakBtn.classList.remove('active'); }
+    if (currentSpeakBtn === btn) { currentSpeakBtn = null; return; }
+  }
+  currentSpeakBtn = btn;
+  btn.textContent = '🔉'; btn.classList.add('active');
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.lang = jioLang === 'hi' ? 'hi-IN' : 'en-IN';
+  utt.rate = 0.92;
+  utt.onend = () => { btn.textContent = '🔊'; btn.classList.remove('active'); currentSpeakBtn = null; };
+  window.speechSynthesis.speak(utt);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  FIREBASE BRIDGE — called by native Android/iOS app
+//  Android: webView.evaluateJavascript("registerPushToken('$token')", null)
+//  iOS:     webView.evaluateJavaScript("registerPushToken('\(token)')")
+// ═══════════════════════════════════════════════════════════════
+function registerPushToken(fcmToken) {
+  if (!fcmToken || !jwtToken) return;
+  apiCall('/auth/push-token', 'POST', { token: fcmToken }).catch(() => {});
 }
 
 // ═══════════════════════════════════════════════════════════════
