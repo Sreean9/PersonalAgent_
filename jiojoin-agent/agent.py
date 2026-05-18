@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import get_settings
 from llm.router import LLMRouter
+from llm.sarvam_provider import detect_language
 from tools.tool_registry import TOOLS
 from tools.todo_tools import (
     add_todo, list_todos, update_todo, delete_todo, search_todos,
@@ -58,14 +59,11 @@ Guidelines:
 - For plans, ask clarifying questions to build a complete, structured plan.
 - Occasionally remind users about their daily puzzle if they haven't played today (don't be pushy).
 
-**Language rule (critical):** Reply in the EXACT language the user wrote in.
-- English message → reply in English. Indian city or place names (Hyderabad, Mumbai, Delhi, Chennai) inside an English sentence do NOT make it a Hindi message. Judge by the language of the sentence, not by the words.
-- Devanagari Hindi (हिंदी में लिखा संदेश) → reply in Devanagari Hindi.
-- Roman transliteration Hindi (e.g. "kaise ho", "mujhe task add karo", "doodh se paneer kaise banate hai") → reply in Devanagari Hindi.
-- When in doubt, default to English.
-- Never respond in Roman transliteration of Hindi.
-
-आप हिंदी में भी उतनी ही कुशलता से जवाब दे सकते हैं। जब उपयोगकर्ता हिंदी में लिखें (देवनागरी या रोमन लिपि में), तो हमेशा देवनागरी हिंदी में जवाब दें।
+**LANGUAGE RULE — follow this exactly, no exceptions:**
+Every user message starts with a language tag. Obey the tag:
+- [EN] at the start → your ENTIRE reply must be in English only. Indian place names do NOT change this.
+- [HI] at the start → your ENTIRE reply must be in Devanagari Hindi only (never Roman/transliteration).
+- No tag → match the script the user wrote in; default to English if unclear.
 """
 
 
@@ -148,18 +146,26 @@ class JioJoinAgent:
         """
         tools_used: list[str] = []
 
+        # Detect language via script analysis before building messages.
+        # This is reliable (Unicode-based) unlike langdetect which misidentifies
+        # English text containing Indian city/place names as Hindi.
+        detected_lang = detect_language(user_message)
+        if detected_lang == "en":
+            tagged_message = f"[EN] {user_message}"
+        elif detected_lang == "hi":
+            tagged_message = f"[HI] {user_message}"
+        else:
+            tagged_message = user_message  # regional langs go through Sarvam
+
         messages: list[dict] = [
             {"role": "system", "content": SYSTEM_PROMPT},
             *history,
-            {"role": "user", "content": user_message},
+            {"role": "user", "content": tagged_message},
         ]
-
-        detected_lang = "en"
 
         for round_num in range(settings.max_tool_rounds):
             logger.debug("Agent round %d – %d messages", round_num + 1, len(messages))
 
-            # On round 0 pass the raw user message for language detection
             raw = user_message if round_num == 0 else ""
             try:
                 response, lang = await self._router.chat(
@@ -171,9 +177,6 @@ class JioJoinAgent:
                 )
             except Exception as exc:
                 if getattr(exc, "status_code", None) == 400:
-                    # Groq rejected a malformed tool call — retry without tools.
-                    # max_tokens=512 keeps the retry fast so we stay within the
-                    # client timeout even after the first failed call.
                     logger.warning("400 tool_use_failed in agent loop round %d — retrying without tools. %s", round_num + 1, exc)
                     response, lang = await self._router.chat(
                         messages=messages,
@@ -184,7 +187,9 @@ class JioJoinAgent:
                     )
                 else:
                     raise
-            if round_num == 0:
+
+            # Update detected_lang if router disagrees (e.g. Sarvam regional lang)
+            if round_num == 0 and lang not in ("en", "hi"):
                 detected_lang = lang
 
             # Final answer — no tool calls
