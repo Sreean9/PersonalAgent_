@@ -32,13 +32,21 @@ _LANG_TO_SARVAM: dict[str, str] = {
 # Languages Groq handles well enough without Sarvam
 _GROQ_NATIVE = {"en", "hi"}
 
-# Common Roman-script Hindi words that do not appear in English
-_ROMAN_HINDI_MARKERS = frozenset([
-    "kaise", "kya", "mujhe", "aapko", "tumhe", "hain", "nahi",
-    "bahut", "karo", "bata", "batao", "mera", "meri", "humara",
-    "sunao", "dekho", "chahiye", "theek", "accha", "shukriya",
-    "namaste", "yaar", "dost", "bhai", "acha", "hoga", "karega",
-    "karein", "dikhao",
+# Strong Roman Hindi markers: ONE match is enough to conclude Hindi
+_ROMAN_HINDI_STRONG = frozenset([
+    "kidhar", "kahan", "kaise", "kyun", "karega", "karein",
+    "batao", "dikhao", "sunao", "dekho", "chahiye", "shukriya",
+    "nahi", "hain", "mujhe", "aapko", "tumhe", "humara",
+    "namaste", "bahut", "theek", "accha", "acha",
+    "bata", "karo", "mera", "meri", "yaar", "bhai", "dost",
+    "hoga", "likhao", "samjho", "bolna", "bolte", "chahta",
+    "chahte", "chahti", "milna", "milte", "khana", "pina",
+])
+
+# Weak Roman Hindi markers: need TWO or more matches to conclude Hindi
+_ROMAN_HINDI_WEAK = frozenset([
+    "hai", "hoon", "kya", "tum", "aap", "bhi", "aur",
+    "yeh", "woh", "ek", "ab", "kal", "aaj", "kab",
 ])
 
 
@@ -76,9 +84,11 @@ def detect_language(text: str) -> str:
     if _has_block(0x0D00, 0x0D7F):   # Malayalam
         return "ml"
 
-    # Latin-script only -- check for Roman transliteration Hindi markers
+    # Latin-script: tiered Roman-Hindi detection
     words = set(t.lower().split())
-    if len(words & _ROMAN_HINDI_MARKERS) >= 2:
+    if words & _ROMAN_HINDI_STRONG:          # 1 strong marker = Hindi
+        return "hi"
+    if len(words & _ROMAN_HINDI_WEAK) >= 2:  # 2+ weak markers = Hindi
         return "hi"
 
     return "en"
